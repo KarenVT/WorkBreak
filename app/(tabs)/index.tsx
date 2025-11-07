@@ -1,98 +1,146 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { ThemedText } from "@/components/themed-text";
+import { CircularTimer } from "@/components/timer/circular-timer";
+import { TimerButton } from "@/components/timer/timer-button";
+import { TimerHeader } from "@/components/timer/timer-header";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useTimer } from "@/hooks/use-timer";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const {
+    timeRemaining,
+    progress,
+    state,
+    cyclesCompleted,
+    totalCycles,
+    start,
+    pause,
+    reset,
+    skip,
+    formatTime,
+  } = useTimer({
+    initialMinutes: 25,
+    onComplete: () => {
+      // Aquí puedes agregar lógica adicional cuando se complete un ciclo
+      console.log("Ciclo completado");
+    },
+  });
+
+  const handleSettingsPress = () => {
+    // Aquí puedes navegar a la pantalla de configuración
+    console.log("Configuración presionada");
+  };
+
+  const handleMainButtonPress = () => {
+    if (state === "running") {
+      pause();
+    } else {
+      start();
+    }
+  };
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <TimerHeader
+          cyclesCompleted={cyclesCompleted}
+          totalCycles={totalCycles}
+          onSettingsPress={handleSettingsPress}
+        />
+
+        <View style={styles.timerSection}>
+          <ThemedText
+            type="subtitle"
+            style={[styles.timerTitle, { color: colors.text }]}
+          >
+            Tiempo de Enfocarse
+          </ThemedText>
+
+          <View style={styles.timerContainer}>
+            <CircularTimer
+              timeRemaining={timeRemaining}
+              progress={progress}
+              formatTime={formatTime}
+            />
+          </View>
+
+          <ThemedText
+            style={[styles.motivationalText, { color: colors.textMedium }]}
+          >
+            ¡Tú puedes!
+          </ThemedText>
+        </View>
+
+        <View style={styles.controlsSection}>
+          <TimerButton
+            label="Reiniciar"
+            icon="arrow.clockwise"
+            onPress={reset}
+            variant="secondary"
+          />
+          <TimerButton
+            label={state === "running" ? "Pausa" : "Iniciar"}
+            icon={state === "running" ? "pause.fill" : "play.fill"}
+            onPress={handleMainButtonPress}
+            variant="primary"
+          />
+          <TimerButton
+            label="Saltar"
+            icon="forward.fill"
+            onPress={skip}
+            variant="secondary"
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 10,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  timerSection: {
+    alignItems: "center",
+    marginTop: 40,
+    marginBottom: 40,
+  },
+  timerTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 30,
+  },
+  timerContainer: {
+    marginVertical: 0,
+  },
+  motivationalText: {
+    fontSize: 18,
+    fontWeight: "500",
+    marginTop: 20,
+  },
+  controlsSection: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-start",
+    gap: 40,
+    paddingHorizontal: 30,
+    marginTop: 20,
   },
 });
