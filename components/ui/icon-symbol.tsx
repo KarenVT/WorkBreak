@@ -21,6 +21,7 @@ const MAPPING = {
   "paperplane.fill": "send",
   "chevron.left.forwardslash.chevron.right": "code",
   "chevron.right": "chevron-right",
+  "chevron.left": "chevron-left",
   "arrow.clockwise": "refresh",
   "pause.fill": "pause",
   "play.fill": "play-arrow",
@@ -28,6 +29,11 @@ const MAPPING = {
   "gearshape.fill": "settings",
   "dumbbell.fill": "fitness-center",
   "chart.bar.fill": "bar-chart",
+  "bell.fill": "notifications",
+  timer: "timer",
+  hourglass: "hourglass-empty",
+  "music.note": "music-note",
+  "info.circle.fill": "info",
 } as IconMapping;
 
 /**

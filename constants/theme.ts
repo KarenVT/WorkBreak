@@ -22,6 +22,7 @@ export const Colors = {
     timerDarkGreen: "#2b7e1f",
     timerMediumGreen: "#4F8C46",
     timerLightBackground: "#e5e7eb",
+    toggleInactive: "#e5e7eb",
   },
   dark: {
     text: "#ECEDEE",
@@ -37,6 +38,7 @@ export const Colors = {
     timerText: "#090D08",
     textMedium: "#394454",
     textLight: "#9ca3af",
+    toggleInactive: "#e5e7eb",
   },
 };
 
