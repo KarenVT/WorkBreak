@@ -12,6 +12,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,6 +57,8 @@ export default function PomodoroConfigScreen() {
         updatePreference("longBreak", localPreferences.longBreak),
         updatePreference("longBreakAfter", localPreferences.longBreakAfter),
       ]);
+      // Recargar las preferencias para asegurar que se actualicen en todas las pantallas
+      await reloadPreferences();
       Alert.alert("Éxito", "Los cambios se han guardado correctamente");
       router.back();
     } catch (error) {
@@ -65,28 +68,58 @@ export default function PomodoroConfigScreen() {
   };
 
   const handleRestoreDefaults = () => {
-    Alert.alert(
-      "Restaurar por Defecto",
-      "¿Estás seguro de que quieres restaurar los valores por defecto?",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Restaurar",
-          style: "destructive",
-          onPress: () => {
-            setLocalPreferences({
-              workInterval: 25,
-              shortBreak: 5,
-              longBreak: 15,
-              longBreakAfter: 4,
-            });
+    const restoreDefaults = async () => {
+      const defaults = {
+        workInterval: 25,
+        shortBreak: 5,
+        longBreak: 15,
+        longBreakAfter: 4,
+      };
+      setLocalPreferences(defaults);
+      try {
+        await Promise.all([
+          updatePreference("workInterval", defaults.workInterval),
+          updatePreference("shortBreak", defaults.shortBreak),
+          updatePreference("longBreak", defaults.longBreak),
+          updatePreference("longBreakAfter", defaults.longBreakAfter),
+        ]);
+        // Recargar las preferencias para asegurar que se actualicen en todas las pantallas
+        await reloadPreferences();
+        Alert.alert("Éxito", "Los valores por defecto se han restaurado");
+      } catch (error) {
+        Alert.alert("Error", "No se pudieron restaurar los valores por defecto");
+        console.error("Error restaurando valores por defecto:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      // En web, usar window.confirm directamente
+      if (
+        typeof window !== "undefined" &&
+        window.confirm(
+          "¿Estás seguro de que quieres restaurar los valores por defecto?"
+        )
+      ) {
+        restoreDefaults();
+      }
+    } else {
+      // En móvil, usar Alert.alert
+      Alert.alert(
+        "Restaurar por Defecto",
+        "¿Estás seguro de que quieres restaurar los valores por defecto?",
+        [
+          {
+            text: "Cancelar",
+            style: "cancel",
           },
-        },
-      ]
-    );
+          {
+            text: "Restaurar",
+            style: "destructive",
+            onPress: restoreDefaults,
+          },
+        ]
+      );
+    }
   };
 
   const handleWorkIntervalChange = (delta: number) => {
@@ -154,7 +187,7 @@ export default function PomodoroConfigScreen() {
         <View
           style={[
             styles.card,
-            { backgroundColor: "#FFFFFF", shadowColor: "#000" },
+            { backgroundColor: "#FFFFFF" },
           ]}
         >
           <ThemedText
@@ -178,7 +211,7 @@ export default function PomodoroConfigScreen() {
           <View
             style={[
               styles.breakCard,
-              { backgroundColor: "#FFFFFF", shadowColor: "#000" },
+              { backgroundColor: "#FFFFFF" },
             ]}
           >
             <ThemedText
@@ -200,7 +233,7 @@ export default function PomodoroConfigScreen() {
           <View
             style={[
               styles.breakCard,
-              { backgroundColor: "#FFFFFF", shadowColor: "#000" },
+              { backgroundColor: "#FFFFFF" },
             ]}
           >
             <ThemedText
@@ -224,7 +257,7 @@ export default function PomodoroConfigScreen() {
         <View
           style={[
             styles.card,
-            { backgroundColor: "#FFFFFF", shadowColor: "#000" },
+            { backgroundColor: "#FFFFFF" },
           ]}
         >
           <ThemedText
@@ -317,13 +350,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: {
+          width: 0,
+          height: 1,
+        },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
+      },
+    }),
   },
   cardTitle: {
     fontSize: 16,
@@ -340,13 +383,23 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     padding: 20,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: {
+          width: 0,
+          height: 1,
+        },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
+      },
+    }),
   },
   footer: {
     padding: 20,

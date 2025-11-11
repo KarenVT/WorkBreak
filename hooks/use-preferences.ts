@@ -1,5 +1,5 @@
 import { preferencesDB } from "@/services/preferences-db";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface PreferencesState {
   notificationsEnabled: boolean;
@@ -25,11 +25,7 @@ export function usePreferences() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadPreferences();
-  }, []);
-
-  const loadPreferences = async () => {
+  const loadPreferences = useCallback(async () => {
     try {
       await preferencesDB.init();
       const [
@@ -67,7 +63,11 @@ export function usePreferences() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
 
   const updatePreference = async <K extends keyof PreferencesState>(
     key: K,

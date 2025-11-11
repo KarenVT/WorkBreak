@@ -56,7 +56,7 @@ export function PreferenceCycleSelector({
                   },
                 ]}
               >
-                ciclos
+                pomodoros
               </ThemedText>
             </View>
           </TouchableOpacity>
@@ -71,28 +71,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 12,
+    paddingHorizontal: 0,
   },
   option: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   optionContent: {
-    flexDirection: "row",
-    gap: 4,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 0,
   },
   optionNumber: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 2,
+    textAlign: "center",
   },
   optionLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "bold",
+    textAlign: "center",
   },
 });

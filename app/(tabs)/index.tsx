@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -9,16 +9,26 @@ import { TimerButton } from "@/components/timer/timer-button";
 import { TimerHeader } from "@/components/timer/timer-header";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { usePreferences } from "@/hooks/use-preferences";
 import { useTimer } from "@/hooks/use-timer";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
+  const { preferences, isLoading, reloadPreferences } = usePreferences();
+
+  // Recargar preferencias cuando la pantalla recibe foco (cuando vuelves de configuración)
+  useFocusEffect(
+    useCallback(() => {
+      reloadPreferences();
+    }, [reloadPreferences])
+  );
 
   const {
     timeRemaining,
     progress,
     state,
+    sessionType,
     cyclesCompleted,
     totalCycles,
     start,
@@ -27,16 +37,38 @@ export default function HomeScreen() {
     skip,
     formatTime,
   } = useTimer({
-    initialMinutes: 25,
+    config: {
+      workInterval: preferences.workInterval,
+      shortBreak: preferences.shortBreak,
+      longBreak: preferences.longBreak,
+      longBreakAfter: preferences.longBreakAfter,
+    },
     onComplete: () => {
       // Aquí puedes agregar lógica adicional cuando se complete un ciclo
       console.log("Ciclo completado");
     },
   });
 
-  const handleSettingsPress = () => {
-    router.push("/preferences");
+  const getTimerTitle = () => {
+    switch (sessionType) {
+      case "work":
+        return "Tiempo de Enfocarse";
+      case "shortBreak":
+        return "Pausa Corta";
+      case "longBreak":
+        return "Pausa Larga";
+      default:
+        return "Tiempo de Enfocarse";
+    }
   };
+
+  const handleSettingsPress = () => {
+    router.push("/pomodoro-config");
+  };
+
+  if (isLoading) {
+    return null; // O un componente de carga
+  }
 
   const handleMainButtonPress = () => {
     if (state === "running") {
@@ -66,7 +98,7 @@ export default function HomeScreen() {
             type="subtitle"
             style={[styles.timerTitle, { color: colors.text }]}
           >
-            Tiempo de Enfocarse
+            {getTimerTitle()}
           </ThemedText>
 
           <View style={styles.timerContainer}>
