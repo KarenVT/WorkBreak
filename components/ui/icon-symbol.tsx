@@ -34,6 +34,12 @@ const MAPPING = {
   hourglass: "hourglass-empty",
   "music.note": "music-note",
   "info.circle.fill": "info",
+  "minus": "remove",
+  "plus": "add",
+  "figure.stretch": "self-improvement",
+  "figure.mobility": "accessibility",
+  "eye.fill": "visibility",
+  "figure.walk": "directions-walk",
 } as IconMapping;
 
 /**

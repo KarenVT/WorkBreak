@@ -63,10 +63,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    width: "100%",
+    height: 60,
+    borderRadius: 40,
+    marginBottom: 8,
     backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E5E5",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -77,8 +81,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 25,
+    height: 25,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
@@ -89,12 +93,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "500",
   },
   subtitle: {
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 12,
   },
   rightElement: {
     marginLeft: 8,

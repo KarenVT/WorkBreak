@@ -14,6 +14,7 @@ export const Colors = {
     textMedium: "#394454",
     textLight: "#9ca3af",
     background: "#f7f7f7",
+    backgroundSecondary: "#E8F5E9",
     tint: tintColorLight,
     icon: "#9EBF99",
     tabIconDefault: "#9EBF99",
@@ -27,6 +28,7 @@ export const Colors = {
   dark: {
     text: "#ECEDEE",
     background: "#151718",
+    backgroundSecondary: "#E8F5E9",
     tint: tintColorDark,
     icon: "#9EBF99",
     tabIconDefault: "#9EBF99",
@@ -41,6 +43,7 @@ export const Colors = {
     toggleInactive: "#e5e7eb",
   },
 };
+
 
 export const Fonts = Platform.select({
   ios: {

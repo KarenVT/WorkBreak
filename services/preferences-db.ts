@@ -29,12 +29,27 @@ class PreferencesDatabase {
       { key: "pomodoro_end_notification", value: "true" },
       { key: "break_start_notification", value: "true" },
       { key: "alert_sound", value: "default" },
+      { key: "work_interval", value: "25" },
+      { key: "short_break", value: "5" },
+      { key: "long_break", value: "15" },
+      { key: "long_break_after", value: "4" },
+      // Preferencias de ejercicios
+      { key: "exercise_stretching", value: "true" },
+      { key: "exercise_resistance", value: "true" },
+      { key: "exercise_joint_mobility", value: "true" },
+      { key: "exercise_visual", value: "true" },
+      { key: "exercise_general_movement", value: "true" },
     ];
 
     for (const pref of defaults) {
-      const existing = await AsyncStorage.getItem(`${PREFERENCE_PREFIX}${pref.key}`);
+      const existing = await AsyncStorage.getItem(
+        `${PREFERENCE_PREFIX}${pref.key}`
+      );
       if (!existing) {
-        await AsyncStorage.setItem(`${PREFERENCE_PREFIX}${pref.key}`, pref.value);
+        await AsyncStorage.setItem(
+          `${PREFERENCE_PREFIX}${pref.key}`,
+          pref.value
+        );
       }
     }
   }
@@ -61,7 +76,9 @@ class PreferencesDatabase {
     }
 
     const keys = await AsyncStorage.getAllKeys();
-    const preferenceKeys = keys.filter((key) => key.startsWith(PREFERENCE_PREFIX));
+    const preferenceKeys = keys.filter((key) =>
+      key.startsWith(PREFERENCE_PREFIX)
+    );
     const entries = await AsyncStorage.multiGet(preferenceKeys);
 
     const preferences: Record<string, string> = {};
@@ -82,6 +99,15 @@ class PreferencesDatabase {
 
   async setBooleanPreference(key: string, value: boolean): Promise<void> {
     await this.setPreference(key, value ? "true" : "false");
+  }
+
+  async getNumberPreference(key: string): Promise<number> {
+    const value = await this.getPreference(key);
+    return value ? parseInt(value, 10) : 0;
+  }
+
+  async setNumberPreference(key: string, value: number): Promise<void> {
+    await this.setPreference(key, value.toString());
   }
 }
 

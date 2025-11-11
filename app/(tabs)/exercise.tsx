@@ -1,106 +1,190 @@
-import { Image } from "expo-image";
-import { Platform, StyleSheet } from "react-native";
+import { router } from "expo-router";
+import React from "react";
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-
-import ParallaxScrollView from "@/components/parallax-scroll-view";
+import { PreferenceToggle } from "@/components/preferences";
 import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Link } from "expo-router";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useExercisePreferences } from "@/hooks/use-exercise-preferences";
 
-export default function HomeScreen() {
+export default function ExerciseScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+  const {
+    exercises,
+    isLoading,
+    hasChanges,
+    toggleExercise,
+    saveExercisePreferences,
+  } = useExercisePreferences();
+
+  const handleBackPress = () => {
+    if (router.canGoBack()) {
+      router.back();
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    const success = await saveExercisePreferences();
+    if (success) {
+      // Los cambios se guardaron exitosamente
+      // El estado hasChanges se actualizará automáticamente
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.timerDarkGreen} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
-      headerImage={
-        <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
-        />
-      }
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
     >
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Ejercicios!</ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit{" "}
-          <ThemedText type="defaultSemiBold">app/(tabs)/exercise.tsx</ThemedText>{" "}
-          to see changes. Press{" "}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: "cmd + d",
-              android: "cmd + m",
-              web: "F12",
-            })}
-          </ThemedText>{" "}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction
-              title="Action"
-              icon="cube"
-              onPress={() => alert("Action pressed")}
-            />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert("Share pressed")}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert("Delete pressed")}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <TouchableOpacity
+          onPress={handleBackPress}
+          activeOpacity={0.7}
+          style={styles.backButton}
+        >
+          <IconSymbol name="chevron.left" size={24} color={colors.text} />
+        </TouchableOpacity>
+        {/* Subtitle debe quedar debajo del título, alineado correctamente en el header */}
+        <View style={styles.headerTitleContainer}>
+          <ThemedText
+            type="title"
+            style={[styles.headerTitle, { color: colors.text }]}
+          >
+            Preferencias de Ejercicio
+          </ThemedText>
+          <ThemedText style={[styles.subtitle, { color: colors.textLight }]}>
+            Elige los tipos de ejercicios que quieras enfocar en tus clases actuales
+          </ThemedText>
+        </View>
+      
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">
-            npm run reset-project
-          </ThemedText>{" "}
-          to get a fresh <ThemedText type="defaultSemiBold">app</ThemedText>{" "}
-          directory. This will move the current{" "}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{" "}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.exercisesContainer}>
+          {exercises.map((exercise) => (
+            <PreferenceToggle
+              key={exercise.id}
+              icon={exercise.icon}
+              title={exercise.name}
+              value={exercise.enabled}
+              onValueChange={(value) => toggleExercise(exercise.id, value)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { backgroundColor: colors.background }]}>
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            {
+              backgroundColor: hasChanges
+                ? colors.timerDarkGreen
+                : colors.toggleInactive,
+            },
+          ]}
+          onPress={handleSaveChanges}
+          disabled={!hasChanges}
+          activeOpacity={0.8}
+        >
+          <ThemedText style={styles.saveButtonText}>Guardar Cambios</ThemedText>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5E5",
+    marginBottom: 18,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  backButton: {
+    padding: 4,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: "absolute",
+  headerTitleContainer: {
+    marginTop: 0,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    flex: 1,
+    textAlign: "center",
+  },
+  placeholder: {
+    width: 32,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  exercisesContainer: {
+    gap: 0,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 32,
+    borderTopColor: "#E5E5E5",
+  },
+  saveButton: {
+    borderRadius: 40,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
