@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
 import { preferencesDB } from "@/services/preferences-db";
+import { useEffect, useState } from "react";
 
 export interface PreferencesState {
   notificationsEnabled: boolean;
   pomodoroEndNotification: boolean;
   breakStartNotification: boolean;
   alertSound: string;
+  workInterval: number;
+  shortBreak: number;
+  longBreak: number;
+  longBreakAfter: number;
 }
 
 export function usePreferences() {
@@ -14,6 +18,10 @@ export function usePreferences() {
     pomodoroEndNotification: true,
     breakStartNotification: true,
     alertSound: "default",
+    workInterval: 25,
+    shortBreak: 5,
+    longBreak: 15,
+    longBreakAfter: 4,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -24,19 +32,35 @@ export function usePreferences() {
   const loadPreferences = async () => {
     try {
       await preferencesDB.init();
-      const [notificationsEnabled, pomodoroEndNotification, breakStartNotification, alertSound] =
-        await Promise.all([
-          preferencesDB.getBooleanPreference("notifications_enabled"),
-          preferencesDB.getBooleanPreference("pomodoro_end_notification"),
-          preferencesDB.getBooleanPreference("break_start_notification"),
-          preferencesDB.getPreference("alert_sound"),
-        ]);
+      const [
+        notificationsEnabled,
+        pomodoroEndNotification,
+        breakStartNotification,
+        alertSound,
+        workInterval,
+        shortBreak,
+        longBreak,
+        longBreakAfter,
+      ] = await Promise.all([
+        preferencesDB.getBooleanPreference("notifications_enabled"),
+        preferencesDB.getBooleanPreference("pomodoro_end_notification"),
+        preferencesDB.getBooleanPreference("break_start_notification"),
+        preferencesDB.getPreference("alert_sound"),
+        preferencesDB.getNumberPreference("work_interval"),
+        preferencesDB.getNumberPreference("short_break"),
+        preferencesDB.getNumberPreference("long_break"),
+        preferencesDB.getNumberPreference("long_break_after"),
+      ]);
 
       setPreferences({
         notificationsEnabled,
         pomodoroEndNotification,
         breakStartNotification,
         alertSound: alertSound || "default",
+        workInterval: workInterval || 25,
+        shortBreak: shortBreak || 5,
+        longBreak: longBreak || 15,
+        longBreakAfter: longBreakAfter || 4,
       });
     } catch (error) {
       console.error("Error cargando preferencias:", error);
@@ -57,11 +81,17 @@ export function usePreferences() {
         pomodoroEndNotification: "pomodoro_end_notification",
         breakStartNotification: "break_start_notification",
         alertSound: "alert_sound",
+        workInterval: "work_interval",
+        shortBreak: "short_break",
+        longBreak: "long_break",
+        longBreakAfter: "long_break_after",
       };
 
       const dbKey = dbKeyMap[key];
       if (typeof value === "boolean") {
         await preferencesDB.setBooleanPreference(dbKey, value);
+      } else if (typeof value === "number") {
+        await preferencesDB.setNumberPreference(dbKey, value);
       } else {
         await preferencesDB.setPreference(dbKey, value);
       }
@@ -79,4 +109,3 @@ export function usePreferences() {
     reloadPreferences: loadPreferences,
   };
 }
-

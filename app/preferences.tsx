@@ -141,6 +141,21 @@ export default function PreferencesScreen() {
             type="subtitle"
             style={[styles.sectionTitle, { color: colors.text }]}
           >
+            Pomodoro
+          </ThemedText>
+
+          <PreferenceNavigation
+            icon="timer"
+            title="Configuración Pomodoro"
+            onPress={() => router.push("/pomodoro-config")}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText
+            type="subtitle"
+            style={[styles.sectionTitle, { color: colors.text }]}
+          >
             General
           </ThemedText>
 
