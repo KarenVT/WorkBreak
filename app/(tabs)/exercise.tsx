@@ -67,7 +67,6 @@ export default function ExerciseScreen() {
         >
           <IconSymbol name="chevron.left" size={24} color={colors.text} />
         </TouchableOpacity>
-        {/* Subtitle debe quedar debajo del título, alineado correctamente en el header */}
         <View style={styles.headerTitleContainer}>
           <ThemedText
             type="title"
@@ -76,11 +75,10 @@ export default function ExerciseScreen() {
             Preferencias de Ejercicio
           </ThemedText>
           <ThemedText style={[styles.subtitle, { color: colors.textLight }]}>
-            Elige los tipos de ejercicios que quieras enfocar en tus clases actuales
+            Elige los tipos de ejercicios que quieras enfocar en tus clases
+            actuales
           </ThemedText>
         </View>
-      
-
         <View style={styles.placeholder} />
       </View>
 
@@ -134,25 +132,31 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E5E5",
     marginBottom: 18,
   },
   backButton: {
-    padding: 4,
+    paddingVertical: 4,
+    marginLeft: 12,
+    width: 32,
+    height: 32,
+    alignSelf: "center",
   },
+
   headerTitleContainer: {
-    marginTop: 0,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 0,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    flex: 1,
     textAlign: "center",
+    marginBottom: 2,
   },
   placeholder: {
     width: 32,
@@ -164,7 +168,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   subtitle: {
-    fontSize: 14,
+    padding: 0,
+    fontSize: 12,
     textAlign: "center",
   },
   exercisesContainer: {
