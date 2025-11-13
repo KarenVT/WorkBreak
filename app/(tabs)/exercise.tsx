@@ -9,7 +9,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { PreferenceToggle } from "@/components/preferences";
+import {
+  PreferenceModeSelector,
+  PreferenceToggle,
+} from "@/components/preferences";
 import { ThemedText } from "@/components/themed-text";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
@@ -21,9 +24,11 @@ export default function ExerciseScreen() {
   const colors = Colors[colorScheme ?? "light"];
   const {
     exercises,
+    mode,
     isLoading,
     hasChanges,
     toggleExercise,
+    setExerciseMode,
     saveExercisePreferences,
   } = useExercisePreferences();
 
@@ -87,17 +92,50 @@ export default function ExerciseScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.exercisesContainer}>
-          {exercises.map((exercise) => (
-            <PreferenceToggle
-              key={exercise.id}
-              icon={exercise.icon}
-              title={exercise.name}
-              value={exercise.enabled}
-              onValueChange={(value) => toggleExercise(exercise.id, value)}
-            />
-          ))}
+        <View style={styles.modeSection}>
+          <ThemedText
+            style={[styles.sectionTitle, { color: colors.text }]}
+          >
+            Ejercicios guiados
+          </ThemedText>
+          <PreferenceModeSelector
+            selectedMode={mode}
+            onSelect={setExerciseMode}
+          />
+          {mode === "video" && (
+            <ThemedText
+              style={[styles.modeDescription, { color: colors.textLight }]}
+            >
+              Los ejercicios se mostrarán guiados por video por defecto
+            </ThemedText>
+          )}
+          {mode === "text" && (
+            <ThemedText
+              style={[styles.modeDescription, { color: colors.textLight }]}
+            >
+              Presenta descripción breve y duración del ejercicio
+            </ThemedText>
+          )}
         </View>
+
+        {mode === "text" && (
+          <View style={styles.exercisesContainer}>
+            <ThemedText
+              style={[styles.sectionTitle, { color: colors.text }]}
+            >
+              Categorías de ejercicios
+            </ThemedText>
+            {exercises.map((exercise) => (
+              <PreferenceToggle
+                key={exercise.id}
+                icon={exercise.icon}
+                title={exercise.name}
+                value={exercise.enabled}
+                onValueChange={(value) => toggleExercise(exercise.id, value)}
+              />
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: colors.background }]}>
@@ -166,10 +204,24 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   subtitle: {
     padding: 0,
     fontSize: 12,
+    textAlign: "center",
+  },
+  modeSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  modeDescription: {
+    fontSize: 12,
+    marginTop: 8,
     textAlign: "center",
   },
   exercisesContainer: {

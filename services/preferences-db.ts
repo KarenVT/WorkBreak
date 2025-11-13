@@ -39,6 +39,7 @@ class PreferencesDatabase {
       { key: "exercise_joint_mobility", value: "true" },
       { key: "exercise_visual", value: "true" },
       { key: "exercise_general_movement", value: "true" },
+      { key: "exercise_mode", value: "text" },
     ];
 
     for (const pref of defaults) {

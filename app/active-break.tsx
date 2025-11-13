@@ -1,9 +1,11 @@
+import { ExerciseMode } from "@/components/preferences/preference-mode-selector";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Exercise } from "@/services/exercises";
-import { useEffect } from "react";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   SafeAreaView,
@@ -16,10 +18,11 @@ import {
 interface ActiveBreakModalProps {
   visible: boolean;
   exercise: Exercise | null;
+  mode: ExerciseMode;
   totalDuration: number; // en segundos
   timeRemaining: number; // tiempo restante del temporizador principal
   isPaused: boolean; // estado de pausa del temporizador principal
-  onClose: () => void;
+  onClose: (remainingTime?: number) => void;
   onComplete: () => void;
   onPauseToggle: () => void;
 }
@@ -27,6 +30,7 @@ interface ActiveBreakModalProps {
 export default function ActiveBreakModal({
   visible,
   exercise,
+  mode,
   totalDuration,
   timeRemaining,
   isPaused,
@@ -37,30 +41,94 @@ export default function ActiveBreakModal({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
-  // Cuando el tiempo llega a 0, completar automáticamente
-  useEffect(() => {
-    if (visible && timeRemaining === 0 && totalDuration > 0) {
-      const timeout = setTimeout(() => {
-        onComplete();
-      }, 500);
-      return () => clearTimeout(timeout);
+  // Temporizador independiente para el modal
+  const [modalTimeRemaining, setModalTimeRemaining] = useState(totalDuration);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Crear el reproductor de video (siempre se crea, pero solo se usa cuando mode === "video")
+  const player = useVideoPlayer(
+    require("@/assets/videos/Es_hora_de_la_pausa_activa.mp4"),
+    (player) => {
+      player.loop = true;
+      player.pause(); // Iniciar pausado, se controlará con useEffect
     }
-  }, [timeRemaining, visible, totalDuration, onComplete]);
+  );
+
+  // Inicializar el temporizador del modal cuando se abre
+  useEffect(() => {
+    if (visible && totalDuration > 0) {
+      setModalTimeRemaining(totalDuration);
+    } else if (!visible) {
+      // Detener el temporizador cuando el modal se cierra
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setModalTimeRemaining(totalDuration);
+    }
+  }, [visible, totalDuration]);
+
+  // Controlar el temporizador del modal
+  useEffect(() => {
+    if (visible && modalTimeRemaining > 0 && !isPaused) {
+      intervalRef.current = setInterval(() => {
+        setModalTimeRemaining((prev) => {
+          if (prev <= 1) {
+            // Cuando llega a 0, completar automáticamente
+            setTimeout(() => {
+              onComplete();
+            }, 500);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [visible, modalTimeRemaining, isPaused, onComplete]);
+
+  // Controlar la reproducción del video según el estado de pausa y visibilidad
+  useEffect(() => {
+    if (mode === "video" && player) {
+      if (!visible) {
+        // Detener y reiniciar el video cuando el modal se cierra
+        player.pause();
+        player.currentTime = 0;
+      } else if (visible && !isPaused) {
+        // Reproducir cuando el modal está visible y no está pausado
+        player.play();
+      } else if (isPaused) {
+        // Pausar cuando está pausado
+        player.pause();
+      }
+    }
+  }, [isPaused, mode, visible, player]);
 
   if (!exercise || totalDuration === 0) return null;
 
-  // Calcular minutos y segundos del tiempo restante
-  const minutes = Math.floor(timeRemaining / 60);
-  const seconds = timeRemaining % 60;
+  // Calcular minutos y segundos del tiempo restante del modal
+  const minutes = Math.floor(modalTimeRemaining / 60);
+  const seconds = modalTimeRemaining % 60;
 
-  // Calcular el progreso: cuanto tiempo ha pasado del total
+  // Calcular el progreso: cuanto tiempo ha pasado del total del modal
   // Asegurarse de que el progreso esté entre 0 y 1
-  const elapsedTime = totalDuration - timeRemaining;
+  const elapsedTime = totalDuration - modalTimeRemaining;
   const progress = Math.max(0, Math.min(1, elapsedTime / totalDuration));
 
   const handlePrevious = () => {
-    // Por ahora, solo cerrar el modal
-    onClose();
+    // Cerrar el modal y pasar el tiempo restante para sincronizar el temporizador principal
+    onClose(modalTimeRemaining);
   };
 
   const handleNext = () => {
@@ -73,7 +141,7 @@ export default function ActiveBreakModal({
       visible={visible}
       animationType="slide"
       transparent={false}
-      onRequestClose={onClose}
+      onRequestClose={() => onClose(modalTimeRemaining)}
     >
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
@@ -93,7 +161,7 @@ export default function ActiveBreakModal({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={onClose}
+            onPress={() => onClose(modalTimeRemaining)}
             activeOpacity={0.7}
           >
             <IconSymbol name="xmark" size={24} color={colors.textMedium} />
@@ -102,23 +170,51 @@ export default function ActiveBreakModal({
 
         {/* Contenido principal */}
         <View style={styles.content}>
-          {/* Título del ejercicio */}
-          <Text style={[styles.title, { color: colors.text }]}>
-            {exercise.name}
-          </Text>
+          {/* Título del ejercicio - solo mostrar en modo texto */}
+          {mode === "text" && (
+            <Text style={[styles.title, { color: colors.text }]}>
+              {exercise.name}
+            </Text>
+          )}
 
-          {/* Descripción */}
-          <Text style={[styles.description, { color: colors.textMedium }]}>
-            {exercise.description}
-          </Text>
+          {/* Video o Descripción según el modo */}
+          {mode === "video" ? (
+            <View style={styles.videoContainer}>
+              <VideoView
+                player={player}
+                style={[
+                  styles.video,
+                  { borderRadius: 12, borderWidth: 2, borderColor: "#ffffff" },
+                ]}
+                contentFit="contain"
+                nativeControls={false}
+                allowsFullscreen={false}
+              />
+            </View>
+          ) : (
+            <Text style={[styles.description, { color: colors.textMedium }]}>
+              {exercise.description}
+            </Text>
+          )}
+
+          {/* Información adicional para modo texto */}
+          {mode === "text" && (
+            <View style={styles.durationInfo}>
+              <Text style={[styles.durationText, { color: colors.textMedium }]}>
+              </Text>
+            </View>
+          )}
 
           {/* Timer */}
           <View style={styles.timerContainer}>
-            <View style={styles.timerCircle}>
-              <Text style={styles.timerNumber}>
+            <View style={[styles.timerCircle,
+              { backgroundColor: colors.background },
+              { borderColor: colors.tint }]}>
+              <Text style={[styles.timerNumber,
+                { color: colors.text }
+              ]}>
                 {minutes.toString().padStart(2, "0")}
               </Text>
-              <Text style={styles.timerLabel}>MIN</Text>
             </View>
             <Text style={styles.timerSeparator}>:</Text>
             <View style={[styles.timerCircle, styles.timerCircleActive]}>
@@ -141,47 +237,6 @@ export default function ActiveBreakModal({
               height={4}
               style={styles.progressBar}
             />
-          </View>
-
-          {/* Controles */}
-          <View style={styles.controls}>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.controlButtonSecondary]}
-              onPress={handlePrevious}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                name="backward.fill"
-                size={24}
-                color={colors.textMedium}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                styles.controlButtonPrimary,
-                { backgroundColor: colors.timerDarkGreen },
-              ]}
-              onPress={onPauseToggle}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                name={isPaused ? "play.fill" : "pause.fill"}
-                size={28}
-                color="#FFFFFF"
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.controlButton, styles.controlButtonSecondary]}
-              onPress={handleNext}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                name="forward.fill"
-                size={24}
-                color={colors.textMedium}
-              />
-            </TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -225,20 +280,41 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     textAlign: "center",
-    marginBottom: 48,
+    marginBottom: 24,
     lineHeight: 24,
+  },
+  videoContainer: {
+    width: "100%",
+    maxWidth: 400,
+    height: "60%",
+    marginBottom: 32,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "transparent",
+  },
+  video: {
+    width: "100%",
+    height: "100%",
+  },
+  durationInfo: {
+    marginBottom: 24,
+  },
+  durationText: {
+    fontSize: 14,
+    textAlign: "center",
+    fontWeight: "500",
   },
   timerContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 32,
+    marginBottom: 40,
   },
   timerCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "#e5e7eb",
+    width: 100,
+    height: 80,
+    borderRadius: 20,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -246,9 +322,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F5E9",
   },
   timerNumber: {
-    fontSize: 20,
+    fontSize: 50,
     fontWeight: "600",
-    color: "#9ca3af",
   },
   timerNumberActive: {
     fontSize: 20,
@@ -267,10 +342,9 @@ const styles = StyleSheet.create({
     color: "#2b7e1f",
   },
   timerSeparator: {
-    fontSize: 20,
+    fontSize: 50,
     fontWeight: "600",
     marginHorizontal: 8,
-    color: "#9ca3af",
   },
   progressSection: {
     width: "100%",
@@ -284,24 +358,5 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     width: "100%",
-  },
-  controls: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 32,
-  },
-  controlButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  controlButtonPrimary: {
-    backgroundColor: "#2b7e1f",
-  },
-  controlButtonSecondary: {
-    backgroundColor: "#e5e7eb",
   },
 });

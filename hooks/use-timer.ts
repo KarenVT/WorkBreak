@@ -26,6 +26,7 @@ export interface UseTimerReturn {
   pause: () => void;
   reset: () => void;
   skip: () => void;
+  setTimeRemaining: (seconds: number) => void;
   formatTime: (seconds: number) => string;
 }
 
@@ -201,6 +202,11 @@ export function useTimer({
     setTimeRemaining(0); // Esto activará el efecto de transición
   }, []);
 
+  const updateTimeRemaining = useCallback((seconds: number) => {
+    setTimeRemaining(seconds);
+    // No actualizar initialTimeRef para mantener el progreso correcto
+  }, []);
+
   const formatTime = useCallback((seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -223,6 +229,7 @@ export function useTimer({
     pause,
     reset,
     skip,
+    setTimeRemaining: updateTimeRemaining,
     formatTime,
   };
 }

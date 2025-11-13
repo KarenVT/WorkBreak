@@ -1,5 +1,7 @@
+import { ExerciseMode } from "@/components/preferences/preference-mode-selector";
+import { exercisesDB } from "@/services/exercises-db";
 import { preferencesDB } from "@/services/preferences-db";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface ExerciseType {
   id: string;
@@ -48,19 +50,18 @@ const EXERCISE_TYPES: Omit<ExerciseType, "enabled">[] = [
 
 export function useExercisePreferences() {
   const [exercises, setExercises] = useState<ExerciseType[]>([]);
+  const [mode, setMode] = useState<ExerciseMode>("text");
   const [isLoading, setIsLoading] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
 
-  useEffect(() => {
-    loadExercisePreferences();
-  }, []);
-
-  const loadExercisePreferences = async () => {
+  const loadExercisePreferences = useCallback(async () => {
     try {
       await preferencesDB.init();
       const exercisePreferences = await Promise.all(
         EXERCISE_TYPES.map(async (exercise) => {
-          const enabled = await preferencesDB.getBooleanPreference(exercise.key);
+          const enabled = await preferencesDB.getBooleanPreference(
+            exercise.key
+          );
           return {
             ...exercise,
             enabled,
@@ -68,14 +69,23 @@ export function useExercisePreferences() {
         })
       );
 
+      const savedMode = await preferencesDB.getPreference("exercise_mode");
+      const exerciseMode: ExerciseMode =
+        savedMode === "video" || savedMode === "text" ? savedMode : "text";
+
       setExercises(exercisePreferences);
+      setMode(exerciseMode);
       setHasChanges(false);
     } catch (error) {
       console.error("Error cargando preferencias de ejercicios:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadExercisePreferences();
+  }, [loadExercisePreferences]);
 
   const toggleExercise = (id: string, enabled: boolean) => {
     setExercises((prev) =>
@@ -86,13 +96,31 @@ export function useExercisePreferences() {
     setHasChanges(true);
   };
 
+  const setExerciseMode = (newMode: ExerciseMode) => {
+    setMode(newMode);
+    setHasChanges(true);
+  };
+
   const saveExercisePreferences = async () => {
     try {
+      // Guardar preferencias en AsyncStorage
       await Promise.all(
         exercises.map((exercise) =>
           preferencesDB.setBooleanPreference(exercise.key, exercise.enabled)
         )
       );
+
+      // Guardar modo de ejercicio
+      await preferencesDB.setPreference("exercise_mode", mode);
+
+      // Sincronizar estado de ejercicios en SQLite
+      await exercisesDB.init();
+      await Promise.all(
+        exercises.map((exercise) =>
+          exercisesDB.updateExerciseTypeEnabled(exercise.id, exercise.enabled)
+        )
+      );
+
       setHasChanges(false);
       return true;
     } catch (error) {
@@ -103,11 +131,12 @@ export function useExercisePreferences() {
 
   return {
     exercises,
+    mode,
     isLoading,
     hasChanges,
     toggleExercise,
+    setExerciseMode,
     saveExercisePreferences,
     reloadExercisePreferences: loadExercisePreferences,
   };
 }
-

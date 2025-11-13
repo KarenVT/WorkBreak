@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,19 +19,28 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const { preferences, isLoading, reloadPreferences } = usePreferences();
-  const { exercises: exercisePreferences } = useExercisePreferences();
+  const {
+    exercises: exercisePreferences,
+    mode: exerciseMode,
+    reloadExercisePreferences,
+  } = useExercisePreferences();
   const [activeBreakVisible, setActiveBreakVisible] = useState(false);
   const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
   const [breakDuration, setBreakDuration] = useState(0);
   const [previousSessionType, setPreviousSessionType] = useState<
     "work" | "shortBreak" | "longBreak"
   >("work");
+  const [timerStateBeforeModal, setTimerStateBeforeModal] = useState<
+    "idle" | "running" | "paused"
+  >("idle");
+  const previousEnabledTypesRef = useRef<string>("");
 
   // Recargar preferencias cuando la pantalla recibe foco (cuando vuelves de configuración)
   useFocusEffect(
     useCallback(() => {
       reloadPreferences();
-    }, [reloadPreferences])
+      reloadExercisePreferences();
+    }, [reloadPreferences, reloadExercisePreferences])
   );
 
   const {
@@ -45,6 +54,7 @@ export default function HomeScreen() {
     pause,
     reset,
     skip,
+    setTimeRemaining,
     formatTime,
   } = useTimer({
     config: {
@@ -78,11 +88,16 @@ export default function HomeScreen() {
             ? preferences.shortBreak * 60
             : preferences.longBreak * 60;
 
-        // Obtener un ejercicio aleatorio
-        const exercise = getRandomExercise(enabledTypes);
-        setCurrentExercise(exercise);
-        setBreakDuration(breakDurationSeconds);
-        setActiveBreakVisible(true);
+        // Obtener un ejercicio aleatorio de forma asíncrona
+        getRandomExercise(enabledTypes).then((exercise) => {
+          // Guardar el estado del temporizador antes de abrir el modal
+          setTimerStateBeforeModal(state);
+          // Inicializar la referencia con los tipos habilitados actuales
+          previousEnabledTypesRef.current = enabledTypes.sort().join(",");
+          setCurrentExercise(exercise);
+          setBreakDuration(breakDurationSeconds);
+          setActiveBreakVisible(true);
+        });
       }
     }
 
@@ -94,6 +109,7 @@ export default function HomeScreen() {
     exercisePreferences,
     preferences.shortBreak,
     preferences.longBreak,
+    state,
   ]);
 
   // Actualizar la duración del break si cambian las preferencias mientras el modal está abierto
@@ -115,9 +131,61 @@ export default function HomeScreen() {
     preferences.longBreak,
   ]);
 
-  const handleActiveBreakClose = () => {
+  // Actualizar el ejercicio cuando cambian las preferencias de ejercicio en modo texto
+  useEffect(() => {
+    if (
+      activeBreakVisible &&
+      exerciseMode === "text" &&
+      (sessionType === "shortBreak" || sessionType === "longBreak")
+    ) {
+      // Obtener tipos de ejercicios habilitados
+      const enabledTypes = exercisePreferences
+        .filter((ex) => ex.enabled)
+        .map((ex) => ex.id);
+
+      // Crear una cadena para comparar con la anterior
+      const enabledTypesString = enabledTypes.sort().join(",");
+
+      // Solo actualizar si los tipos habilitados realmente cambiaron
+      if (enabledTypesString !== previousEnabledTypesRef.current) {
+        previousEnabledTypesRef.current = enabledTypesString;
+
+        if (enabledTypes.length > 0) {
+          // Obtener un nuevo ejercicio aleatorio basado en los tipos habilitados
+          getRandomExercise(enabledTypes).then((exercise) => {
+            setCurrentExercise(exercise);
+          });
+        } else {
+          // Si no hay ejercicios habilitados, cerrar el modal
+          setActiveBreakVisible(false);
+          setCurrentExercise(null);
+        }
+      }
+    } else if (!activeBreakVisible) {
+      // Resetear la referencia cuando el modal se cierra
+      previousEnabledTypesRef.current = "";
+    }
+  }, [activeBreakVisible, exerciseMode, exercisePreferences, sessionType]);
+
+  const handleActiveBreakClose = (remainingTime?: number) => {
     setActiveBreakVisible(false);
     setCurrentExercise(null);
+    // Sincronizar el temporizador principal con el tiempo restante del modal
+    if (remainingTime !== undefined && remainingTime >= 0) {
+      setTimeRemaining(remainingTime);
+      // Asegurarse de que el temporizador continúe corriendo si estaba corriendo antes del modal
+      // o si estamos en una pausa (debería estar corriendo)
+      if (
+        timerStateBeforeModal === "running" ||
+        sessionType === "shortBreak" ||
+        sessionType === "longBreak"
+      ) {
+        // Si el temporizador no está corriendo, iniciarlo
+        if (state !== "running") {
+          start();
+        }
+      }
+    }
   };
 
   const handleActiveBreakComplete = () => {
@@ -220,6 +288,7 @@ export default function HomeScreen() {
       <ActiveBreakModal
         visible={activeBreakVisible}
         exercise={currentExercise}
+        mode={exerciseMode}
         totalDuration={breakDuration}
         timeRemaining={timeRemaining}
         isPaused={state === "paused"}
