@@ -32,6 +32,10 @@ export default function RootLayout() {
           name="pomodoro-config"
           options={{ presentation: "modal", headerShown: false }}
         />
+        <Stack.Screen
+          name="active-break"
+          options={{ presentation: "modal", headerShown: false }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

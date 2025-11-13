@@ -47,16 +47,6 @@ export default function TabLayout() {
           ),
         }}
       />
-          <Tabs.Screen
-        name="active-break"
-        options={{
-          title: 'Pausa Activa',
-          tabBarIcon: ({ color }) => (
-             <IconSymbol size={28} name="fitness-center" color={color} />
-          ),
-        }}
-      />
-    </Tabs >
->
+    </Tabs>
   );
 }

@@ -1,9 +1,8 @@
-import React from "react";
-import { StyleSheet } from "react-native";
-import { PreferenceRow } from "./preference-row";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import React from "react";
+import { PreferenceRow } from "./preference-row";
 
 interface PreferenceNavigationProps {
   icon: string;
@@ -33,6 +32,3 @@ export function PreferenceNavigation({
     />
   );
 }
-
-
-

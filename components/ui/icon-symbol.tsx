@@ -1,22 +1,48 @@
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { SymbolViewProps, SymbolWeight } from "expo-symbols";
 import { ComponentProps } from "react";
 import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native";
 
+type IconSymbolName =
+  | "house.fill"
+  | "paperplane.fill"
+  | "chevron.left.forwardslash.chevron.right"
+  | "chevron.right"
+  | "chevron.left"
+  | "arrow.clockwise"
+  | "pause.fill"
+  | "play.fill"
+  | "forward.fill"
+  | "gearshape.fill"
+  | "dumbbell.fill"
+  | "chart.bar.fill"
+  | "bell.fill"
+  | "timer"
+  | "hourglass"
+  | "music.note"
+  | "info.circle.fill"
+  | "minus"
+  | "plus"
+  | "figure.stretch"
+  | "figure.mobility"
+  | "eye.fill"
+  | "figure.walk"
+  | "speaker.wave.2.fill"
+  | "xmark"
+  | "backward.fill";
+
 type IconMapping = Record<
-  SymbolViewProps["name"],
+  IconSymbolName,
   ComponentProps<typeof MaterialIcons>["name"]
 >;
-type IconSymbolName = keyof typeof MAPPING;
 
 /**
  * Add your SF Symbols to Material Icons mappings here.
  * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
  * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
  */
-const MAPPING = {
+const MAPPING: IconMapping = {
   "house.fill": "home",
   "paperplane.fill": "send",
   "chevron.left.forwardslash.chevron.right": "code",
@@ -34,13 +60,16 @@ const MAPPING = {
   hourglass: "hourglass-empty",
   "music.note": "music-note",
   "info.circle.fill": "info",
-  "minus": "remove",
-  "plus": "add",
+  minus: "remove",
+  plus: "add",
   "figure.stretch": "self-improvement",
   "figure.mobility": "accessibility",
   "eye.fill": "visibility",
   "figure.walk": "directions-walk",
-} as IconMapping;
+  "speaker.wave.2.fill": "volume-up",
+  xmark: "close",
+  "backward.fill": "skip-previous",
+};
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
@@ -57,7 +86,6 @@ export function IconSymbol({
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
-  weight?: SymbolWeight;
 }) {
   return (
     <MaterialIcons

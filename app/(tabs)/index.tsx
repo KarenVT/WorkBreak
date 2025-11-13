@@ -1,21 +1,31 @@
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import ActiveBreakModal from "@/app/active-break";
 import { ThemedText } from "@/components/themed-text";
 import { CircularTimer } from "@/components/timer/circular-timer";
 import { TimerButton } from "@/components/timer/timer-button";
 import { TimerHeader } from "@/components/timer/timer-header";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useExercisePreferences } from "@/hooks/use-exercise-preferences";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTimer } from "@/hooks/use-timer";
+import { Exercise, getRandomExercise } from "@/services/exercises";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const { preferences, isLoading, reloadPreferences } = usePreferences();
+  const { exercises: exercisePreferences } = useExercisePreferences();
+  const [activeBreakVisible, setActiveBreakVisible] = useState(false);
+  const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
+  const [breakDuration, setBreakDuration] = useState(0);
+  const [previousSessionType, setPreviousSessionType] = useState<
+    "work" | "shortBreak" | "longBreak"
+  >("work");
 
   // Recargar preferencias cuando la pantalla recibe foco (cuando vuelves de configuración)
   useFocusEffect(
@@ -49,6 +59,73 @@ export default function HomeScreen() {
     },
   });
 
+  // Detectar cuando se entra en pausa corta o larga
+  useEffect(() => {
+    const isBreak = sessionType === "shortBreak" || sessionType === "longBreak";
+    const wasWork = previousSessionType === "work";
+    const justStartedBreak = isBreak && wasWork && !activeBreakVisible;
+
+    if (justStartedBreak) {
+      // Obtener tipos de ejercicios habilitados
+      const enabledTypes = exercisePreferences
+        .filter((ex) => ex.enabled)
+        .map((ex) => ex.id);
+
+      if (enabledTypes.length > 0) {
+        // Calcular la duración total de la pausa en segundos
+        const breakDurationSeconds =
+          sessionType === "shortBreak"
+            ? preferences.shortBreak * 60
+            : preferences.longBreak * 60;
+
+        // Obtener un ejercicio aleatorio
+        const exercise = getRandomExercise(enabledTypes);
+        setCurrentExercise(exercise);
+        setBreakDuration(breakDurationSeconds);
+        setActiveBreakVisible(true);
+      }
+    }
+
+    setPreviousSessionType(sessionType);
+  }, [
+    sessionType,
+    previousSessionType,
+    activeBreakVisible,
+    exercisePreferences,
+    preferences.shortBreak,
+    preferences.longBreak,
+  ]);
+
+  // Actualizar la duración del break si cambian las preferencias mientras el modal está abierto
+  useEffect(() => {
+    if (
+      activeBreakVisible &&
+      (sessionType === "shortBreak" || sessionType === "longBreak")
+    ) {
+      const breakDurationSeconds =
+        sessionType === "shortBreak"
+          ? preferences.shortBreak * 60
+          : preferences.longBreak * 60;
+      setBreakDuration(breakDurationSeconds);
+    }
+  }, [
+    activeBreakVisible,
+    sessionType,
+    preferences.shortBreak,
+    preferences.longBreak,
+  ]);
+
+  const handleActiveBreakClose = () => {
+    setActiveBreakVisible(false);
+    setCurrentExercise(null);
+  };
+
+  const handleActiveBreakComplete = () => {
+    setActiveBreakVisible(false);
+    setCurrentExercise(null);
+    // El temporizador continúa normalmente
+  };
+
   const getTimerTitle = () => {
     switch (sessionType) {
       case "work":
@@ -63,7 +140,7 @@ export default function HomeScreen() {
   };
 
   const handleSettingsPress = () => {
-    router.push("/pomodoro-config");
+    router.push("/preferences");
   };
 
   if (isLoading) {
@@ -79,65 +156,78 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={["top"]}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
       >
-        <TimerHeader
-          cyclesCompleted={cyclesCompleted}
-          totalCycles={totalCycles}
-          onSettingsPress={handleSettingsPress}
-        />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <TimerHeader
+            cyclesCompleted={cyclesCompleted}
+            totalCycles={totalCycles}
+            onSettingsPress={handleSettingsPress}
+          />
 
-        <View style={styles.timerSection}>
-          <ThemedText
-            type="subtitle"
-            style={[styles.timerTitle, { color: colors.text }]}
-          >
-            {getTimerTitle()}
-          </ThemedText>
+          <View style={styles.timerSection}>
+            <ThemedText
+              type="subtitle"
+              style={[styles.timerTitle, { color: colors.text }]}
+            >
+              {getTimerTitle()}
+            </ThemedText>
 
-          <View style={styles.timerContainer}>
-            <CircularTimer
-              timeRemaining={timeRemaining}
-              progress={progress}
-              formatTime={formatTime}
-            />
+            <View style={styles.timerContainer}>
+              <CircularTimer
+                timeRemaining={timeRemaining}
+                progress={progress}
+                formatTime={formatTime}
+              />
+            </View>
+
+            <ThemedText
+              style={[styles.motivationalText, { color: colors.textMedium }]}
+            >
+              ¡Tú puedes!
+            </ThemedText>
           </View>
 
-          <ThemedText
-            style={[styles.motivationalText, { color: colors.textMedium }]}
-          >
-            ¡Tú puedes!
-          </ThemedText>
-        </View>
+          <View style={styles.controlsSection}>
+            <TimerButton
+              label="Reiniciar"
+              icon="arrow.clockwise"
+              onPress={reset}
+              variant="secondary"
+            />
+            <TimerButton
+              label={state === "running" ? "Pausa" : "Iniciar"}
+              icon={state === "running" ? "pause.fill" : "play.fill"}
+              onPress={handleMainButtonPress}
+              variant="primary"
+            />
+            <TimerButton
+              label="Saltar"
+              icon="forward.fill"
+              onPress={skip}
+              variant="secondary"
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
 
-        <View style={styles.controlsSection}>
-          <TimerButton
-            label="Reiniciar"
-            icon="arrow.clockwise"
-            onPress={reset}
-            variant="secondary"
-          />
-          <TimerButton
-            label={state === "running" ? "Pausa" : "Iniciar"}
-            icon={state === "running" ? "pause.fill" : "play.fill"}
-            onPress={handleMainButtonPress}
-            variant="primary"
-          />
-          <TimerButton
-            label="Saltar"
-            icon="forward.fill"
-            onPress={skip}
-            variant="secondary"
-          />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <ActiveBreakModal
+        visible={activeBreakVisible}
+        exercise={currentExercise}
+        totalDuration={breakDuration}
+        timeRemaining={timeRemaining}
+        isPaused={state === "paused"}
+        onClose={handleActiveBreakClose}
+        onComplete={handleActiveBreakComplete}
+        onPauseToggle={handleMainButtonPress}
+      />
+    </>
   );
 }
 
