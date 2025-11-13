@@ -13,7 +13,11 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useExercisePreferences } from "@/hooks/use-exercise-preferences";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTimer } from "@/hooks/use-timer";
-import { Exercise, getRandomExercise } from "@/services/exercises";
+import {
+  Exercise,
+  getRandomExercise,
+  getRandomExercises,
+} from "@/services/exercises";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -26,6 +30,7 @@ export default function HomeScreen() {
   } = useExercisePreferences();
   const [activeBreakVisible, setActiveBreakVisible] = useState(false);
   const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null);
+  const [currentExercises, setCurrentExercises] = useState<Exercise[]>([]);
   const [breakDuration, setBreakDuration] = useState(0);
   const [previousSessionType, setPreviousSessionType] = useState<
     "work" | "shortBreak" | "longBreak"
@@ -88,16 +93,44 @@ export default function HomeScreen() {
             ? preferences.shortBreak * 60
             : preferences.longBreak * 60;
 
-        // Obtener un ejercicio aleatorio de forma asíncrona
-        getRandomExercise(enabledTypes).then((exercise) => {
-          // Guardar el estado del temporizador antes de abrir el modal
-          setTimerStateBeforeModal(state);
-          // Inicializar la referencia con los tipos habilitados actuales
-          previousEnabledTypesRef.current = enabledTypes.sort().join(",");
-          setCurrentExercise(exercise);
-          setBreakDuration(breakDurationSeconds);
-          setActiveBreakVisible(true);
-        });
+        // Si el modo es "text" y la duración es mayor a 2 minutos (120 segundos),
+        // calcular cuántos ejercicios se necesitan (cada ejercicio dura 60 segundos)
+        const EXERCISE_DURATION_SECONDS = 60;
+        const TWO_MINUTES_SECONDS = 120;
+
+        if (
+          exerciseMode === "text" &&
+          breakDurationSeconds > TWO_MINUTES_SECONDS
+        ) {
+          // Calcular cantidad de ejercicios necesarios
+          const exerciseCount = Math.floor(
+            breakDurationSeconds / EXERCISE_DURATION_SECONDS
+          );
+
+          // Obtener múltiples ejercicios aleatorios
+          getRandomExercises(enabledTypes, exerciseCount).then((exercises) => {
+            // Guardar el estado del temporizador antes de abrir el modal
+            setTimerStateBeforeModal(state);
+            // Inicializar la referencia con los tipos habilitados actuales
+            previousEnabledTypesRef.current = enabledTypes.sort().join(",");
+            setCurrentExercises(exercises);
+            setCurrentExercise(null); // Limpiar ejercicio único
+            setBreakDuration(breakDurationSeconds);
+            setActiveBreakVisible(true);
+          });
+        } else {
+          // Obtener un ejercicio aleatorio de forma asíncrona (modo video o duración <= 2 min)
+          getRandomExercise(enabledTypes).then((exercise) => {
+            // Guardar el estado del temporizador antes de abrir el modal
+            setTimerStateBeforeModal(state);
+            // Inicializar la referencia con los tipos habilitados actuales
+            previousEnabledTypesRef.current = enabledTypes.sort().join(",");
+            setCurrentExercise(exercise);
+            setCurrentExercises([]); // Limpiar array de ejercicios
+            setBreakDuration(breakDurationSeconds);
+            setActiveBreakVisible(true);
+          });
+        }
       }
     }
 
@@ -110,9 +143,10 @@ export default function HomeScreen() {
     preferences.shortBreak,
     preferences.longBreak,
     state,
+    exerciseMode,
   ]);
 
-  // Actualizar la duración del break si cambian las preferencias mientras el modal está abierto
+  // Actualizar la duración del break y recalcular ejercicios si cambian las preferencias mientras el modal está abierto
   useEffect(() => {
     if (
       activeBreakVisible &&
@@ -122,13 +156,50 @@ export default function HomeScreen() {
         sessionType === "shortBreak"
           ? preferences.shortBreak * 60
           : preferences.longBreak * 60;
-      setBreakDuration(breakDurationSeconds);
+
+      // Recalcular ejercicios si el modo es texto y cambió la duración
+      if (exerciseMode === "text") {
+        const enabledTypes = exercisePreferences
+          .filter((ex) => ex.enabled)
+          .map((ex) => ex.id);
+
+        if (enabledTypes.length > 0) {
+          const EXERCISE_DURATION_SECONDS = 60;
+          const TWO_MINUTES_SECONDS = 120;
+
+          if (breakDurationSeconds > TWO_MINUTES_SECONDS) {
+            const exerciseCount = Math.floor(
+              breakDurationSeconds / EXERCISE_DURATION_SECONDS
+            );
+            getRandomExercises(enabledTypes, exerciseCount).then(
+              (exercises) => {
+                setCurrentExercises(exercises);
+                setCurrentExercise(null);
+                setBreakDuration(breakDurationSeconds);
+              }
+            );
+          } else {
+            getRandomExercise(enabledTypes).then((exercise) => {
+              setCurrentExercise(exercise);
+              setCurrentExercises([]);
+              setBreakDuration(breakDurationSeconds);
+            });
+          }
+        } else {
+          setBreakDuration(breakDurationSeconds);
+        }
+      } else {
+        // Modo video, solo actualizar duración
+        setBreakDuration(breakDurationSeconds);
+      }
     }
   }, [
     activeBreakVisible,
     sessionType,
     preferences.shortBreak,
     preferences.longBreak,
+    exerciseMode,
+    exercisePreferences,
   ]);
 
   // Actualizar el ejercicio cuando cambian las preferencias de ejercicio en modo texto
@@ -151,25 +222,56 @@ export default function HomeScreen() {
         previousEnabledTypesRef.current = enabledTypesString;
 
         if (enabledTypes.length > 0) {
-          // Obtener un nuevo ejercicio aleatorio basado en los tipos habilitados
-          getRandomExercise(enabledTypes).then((exercise) => {
-            setCurrentExercise(exercise);
-          });
+          // Recalcular ejercicios si la duración cambió
+          const breakDurationSeconds =
+            sessionType === "shortBreak"
+              ? preferences.shortBreak * 60
+              : preferences.longBreak * 60;
+
+          const EXERCISE_DURATION_SECONDS = 60;
+          const TWO_MINUTES_SECONDS = 120;
+
+          if (breakDurationSeconds > TWO_MINUTES_SECONDS) {
+            const exerciseCount = Math.floor(
+              breakDurationSeconds / EXERCISE_DURATION_SECONDS
+            );
+            getRandomExercises(enabledTypes, exerciseCount).then(
+              (exercises) => {
+                setCurrentExercises(exercises);
+                setCurrentExercise(null);
+              }
+            );
+          } else {
+            // Obtener un nuevo ejercicio aleatorio basado en los tipos habilitados
+            getRandomExercise(enabledTypes).then((exercise) => {
+              setCurrentExercise(exercise);
+              setCurrentExercises([]);
+            });
+          }
         } else {
           // Si no hay ejercicios habilitados, cerrar el modal
           setActiveBreakVisible(false);
           setCurrentExercise(null);
+          setCurrentExercises([]);
         }
       }
     } else if (!activeBreakVisible) {
       // Resetear la referencia cuando el modal se cierra
       previousEnabledTypesRef.current = "";
     }
-  }, [activeBreakVisible, exerciseMode, exercisePreferences, sessionType]);
+  }, [
+    activeBreakVisible,
+    exerciseMode,
+    exercisePreferences,
+    sessionType,
+    preferences.shortBreak,
+    preferences.longBreak,
+  ]);
 
   const handleActiveBreakClose = (remainingTime?: number) => {
     setActiveBreakVisible(false);
     setCurrentExercise(null);
+    setCurrentExercises([]);
     // Sincronizar el temporizador principal con el tiempo restante del modal
     if (remainingTime !== undefined && remainingTime >= 0) {
       setTimeRemaining(remainingTime);
@@ -191,6 +293,7 @@ export default function HomeScreen() {
   const handleActiveBreakComplete = () => {
     setActiveBreakVisible(false);
     setCurrentExercise(null);
+    setCurrentExercises([]);
     // El temporizador continúa normalmente
   };
 
@@ -288,6 +391,7 @@ export default function HomeScreen() {
       <ActiveBreakModal
         visible={activeBreakVisible}
         exercise={currentExercise}
+        exercises={currentExercises}
         mode={exerciseMode}
         totalDuration={breakDuration}
         timeRemaining={timeRemaining}

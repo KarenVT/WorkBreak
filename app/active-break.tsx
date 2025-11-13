@@ -18,6 +18,7 @@ import {
 interface ActiveBreakModalProps {
   visible: boolean;
   exercise: Exercise | null;
+  exercises: Exercise[]; // Array de ejercicios para modo múltiple
   mode: ExerciseMode;
   totalDuration: number; // en segundos
   timeRemaining: number; // tiempo restante del temporizador principal
@@ -30,6 +31,7 @@ interface ActiveBreakModalProps {
 export default function ActiveBreakModal({
   visible,
   exercise,
+  exercises,
   mode,
   totalDuration,
   timeRemaining,
@@ -41,8 +43,30 @@ export default function ActiveBreakModal({
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
+  // Constantes para ejercicios múltiples
+  const EXERCISE_DURATION_SECONDS = 60;
+
+  // Determinar si estamos usando múltiples ejercicios (solo en modo texto)
+  const isMultipleExercises = mode === "text" && exercises.length > 0;
+  const exerciseList = isMultipleExercises
+    ? exercises
+    : exercise
+    ? [exercise]
+    : [];
+  const totalExercises = exerciseList.length;
+
+  // Estado para el ejercicio actual (índice)
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+
+  // Calcular la duración del ejercicio actual
+  const currentExerciseDuration = isMultipleExercises
+    ? EXERCISE_DURATION_SECONDS
+    : totalDuration;
+
   // Temporizador independiente para el modal
-  const [modalTimeRemaining, setModalTimeRemaining] = useState(totalDuration);
+  const [modalTimeRemaining, setModalTimeRemaining] = useState(
+    currentExerciseDuration
+  );
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Crear el reproductor de video (siempre se crea, pero solo se usa cuando mode === "video")
@@ -54,19 +78,70 @@ export default function ActiveBreakModal({
     }
   );
 
-  // Inicializar el temporizador del modal cuando se abre
+  // Referencias para rastrear cambios
+  const previousTotalDurationRef = useRef<number>(0);
+  const previousIsMultipleRef = useRef<boolean>(false);
+  const previousExercisesLengthRef = useRef<number>(0);
+
+  // Inicializar el temporizador del modal cuando se abre o cambia la configuración
   useEffect(() => {
     if (visible && totalDuration > 0) {
-      setModalTimeRemaining(totalDuration);
+      // Detectar si es la primera vez que se abre
+      const isFirstOpen = previousTotalDurationRef.current === 0;
+      // Detectar si cambió el modo (múltiple <-> único)
+      const modeChanged = previousIsMultipleRef.current !== isMultipleExercises;
+      // Detectar si cambió la cantidad de ejercicios (en modo múltiple)
+      const exercisesChanged =
+        isMultipleExercises &&
+        previousExercisesLengthRef.current !== exercises.length;
+      // Detectar si cambió la duración total
+      const durationChanged =
+        totalDuration !== previousTotalDurationRef.current;
+
+      if (isFirstOpen || modeChanged || exercisesChanged) {
+        // Resetear completamente cuando cambia el modo o los ejercicios
+        const duration = isMultipleExercises
+          ? currentExerciseDuration
+          : totalDuration;
+        setModalTimeRemaining(duration);
+        setCurrentExerciseIndex(0);
+        previousTotalDurationRef.current = totalDuration;
+        previousIsMultipleRef.current = isMultipleExercises;
+        previousExercisesLengthRef.current = exercises.length;
+      } else if (durationChanged && !isMultipleExercises) {
+        // Si solo cambió la duración en modo único, ajustar proporcionalmente
+        const ratio = totalDuration / previousTotalDurationRef.current;
+        setModalTimeRemaining((prev) =>
+          Math.max(0, Math.min(totalDuration, Math.floor(prev * ratio)))
+        );
+        previousTotalDurationRef.current = totalDuration;
+      } else if (durationChanged && isMultipleExercises) {
+        // En modo múltiple, si cambió la duración, los ejercicios ya se recalculan arriba
+        // Solo actualizar la referencia
+        previousTotalDurationRef.current = totalDuration;
+      }
     } else if (!visible) {
       // Detener el temporizador cuando el modal se cierra
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      setModalTimeRemaining(totalDuration);
+      const duration = isMultipleExercises
+        ? currentExerciseDuration
+        : totalDuration;
+      setModalTimeRemaining(duration);
+      setCurrentExerciseIndex(0);
+      previousTotalDurationRef.current = 0;
+      previousIsMultipleRef.current = false;
+      previousExercisesLengthRef.current = 0;
     }
-  }, [visible, totalDuration]);
+  }, [
+    visible,
+    totalDuration,
+    isMultipleExercises,
+    currentExerciseDuration,
+    exercises.length,
+  ]);
 
   // Controlar el temporizador del modal
   useEffect(() => {
@@ -74,11 +149,22 @@ export default function ActiveBreakModal({
       intervalRef.current = setInterval(() => {
         setModalTimeRemaining((prev) => {
           if (prev <= 1) {
-            // Cuando llega a 0, completar automáticamente
-            setTimeout(() => {
-              onComplete();
-            }, 500);
-            return 0;
+            // Cuando llega a 0, verificar si hay más ejercicios
+            if (
+              isMultipleExercises &&
+              currentExerciseIndex < totalExercises - 1
+            ) {
+              // Cambiar al siguiente ejercicio
+              const nextIndex = currentExerciseIndex + 1;
+              setCurrentExerciseIndex(nextIndex);
+              return currentExerciseDuration; // Reiniciar con la duración del siguiente ejercicio
+            } else {
+              // Completar todos los ejercicios
+              setTimeout(() => {
+                onComplete();
+              }, 500);
+              return 0;
+            }
           }
           return prev - 1;
         });
@@ -96,7 +182,28 @@ export default function ActiveBreakModal({
         intervalRef.current = null;
       }
     };
-  }, [visible, modalTimeRemaining, isPaused, onComplete]);
+  }, [
+    visible,
+    modalTimeRemaining,
+    isPaused,
+    onComplete,
+    isMultipleExercises,
+    currentExerciseIndex,
+    totalExercises,
+    currentExerciseDuration,
+  ]);
+
+  // Reiniciar el temporizador cuando cambia el ejercicio actual (solo para múltiples ejercicios)
+  useEffect(() => {
+    if (visible && isMultipleExercises && currentExerciseIndex > 0) {
+      setModalTimeRemaining(currentExerciseDuration);
+    }
+  }, [
+    visible,
+    isMultipleExercises,
+    currentExerciseIndex,
+    currentExerciseDuration,
+  ]);
 
   // Controlar la reproducción del video según el estado de pausa y visibilidad
   useEffect(() => {
@@ -115,25 +222,36 @@ export default function ActiveBreakModal({
     }
   }, [isPaused, mode, visible, player]);
 
-  if (!exercise || totalDuration === 0) return null;
+  // Obtener el ejercicio actual
+  const currentExerciseData = exerciseList[currentExerciseIndex];
+
+  if (!currentExerciseData || totalDuration === 0) return null;
 
   // Calcular minutos y segundos del tiempo restante del modal
   const minutes = Math.floor(modalTimeRemaining / 60);
   const seconds = modalTimeRemaining % 60;
 
-  // Calcular el progreso: cuanto tiempo ha pasado del total del modal
+  // Calcular el progreso: cuanto tiempo ha pasado del ejercicio actual
   // Asegurarse de que el progreso esté entre 0 y 1
-  const elapsedTime = totalDuration - modalTimeRemaining;
-  const progress = Math.max(0, Math.min(1, elapsedTime / totalDuration));
+  const elapsedTime = currentExerciseDuration - modalTimeRemaining;
+  const progress = Math.max(
+    0,
+    Math.min(1, elapsedTime / currentExerciseDuration)
+  );
 
   const handlePrevious = () => {
-    // Cerrar el modal y pasar el tiempo restante para sincronizar el temporizador principal
-    onClose(modalTimeRemaining);
-  };
+    // Calcular el tiempo restante total de la pausa
+    let remainingTime = modalTimeRemaining;
 
-  const handleNext = () => {
-    // Completar el ejercicio actual
-    onComplete();
+    if (isMultipleExercises) {
+      // Calcular tiempo restante de ejercicios pendientes
+      const remainingExercises = totalExercises - currentExerciseIndex - 1;
+      remainingTime =
+        modalTimeRemaining + remainingExercises * EXERCISE_DURATION_SECONDS;
+    }
+
+    // Cerrar el modal y pasar el tiempo restante para sincronizar el temporizador principal
+    onClose(remainingTime);
   };
 
   return (
@@ -141,7 +259,7 @@ export default function ActiveBreakModal({
       visible={visible}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => onClose(modalTimeRemaining)}
+      onRequestClose={handlePrevious}
     >
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
@@ -161,7 +279,7 @@ export default function ActiveBreakModal({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={() => onClose(modalTimeRemaining)}
+            onPress={handlePrevious}
             activeOpacity={0.7}
           >
             <IconSymbol name="xmark" size={24} color={colors.textMedium} />
@@ -173,7 +291,7 @@ export default function ActiveBreakModal({
           {/* Título del ejercicio - solo mostrar en modo texto */}
           {mode === "text" && (
             <Text style={[styles.title, { color: colors.text }]}>
-              {exercise.name}
+              {currentExerciseData.name}
             </Text>
           )}
 
@@ -193,35 +311,45 @@ export default function ActiveBreakModal({
             </View>
           ) : (
             <Text style={[styles.description, { color: colors.textMedium }]}>
-              {exercise.description}
+              {currentExerciseData.description}
             </Text>
           )}
 
           {/* Información adicional para modo texto */}
           {mode === "text" && (
             <View style={styles.durationInfo}>
-              <Text style={[styles.durationText, { color: colors.textMedium }]}>
-              </Text>
+              <Text
+                style={[styles.durationText, { color: colors.textMedium }]}
+              ></Text>
             </View>
           )}
 
           {/* Timer */}
           <View style={styles.timerContainer}>
-            <View style={[styles.timerCircle,
-              { backgroundColor: colors.background },
-              { borderColor: colors.tint }]}>
-              <Text style={[styles.timerNumber,
-                { color: colors.text }
-              ]}>
+            <View
+              style={[
+                styles.timerCircle,
+                { backgroundColor: colors.background },
+                { borderColor: colors.tint },
+              ]}
+            >
+              <Text style={[styles.timerNumber, { color: colors.text }]}>
                 {minutes.toString().padStart(2, "0")}
               </Text>
             </View>
             <Text style={styles.timerSeparator}>:</Text>
-            <View style={[styles.timerCircle, styles.timerCircleActive]}>
-              <Text style={styles.timerNumberActive}>
+            <View
+              style={[
+                styles.timerCircle,
+                { backgroundColor: colors.backgroundSecondary },
+                { borderColor: colors.tint },
+              ]}
+            >
+              <Text
+                style={[styles.timerNumberActive, { color: colors.textActive }]}
+              >
                 {seconds.toString().padStart(2, "0")}
               </Text>
-              <Text style={styles.timerLabelActive}>SEG</Text>
             </View>
           </View>
 
@@ -230,7 +358,7 @@ export default function ActiveBreakModal({
             <Text
               style={[styles.exerciseCounter, { color: colors.textMedium }]}
             >
-              Ejercicio 1 de 1
+              Ejercicio {currentExerciseIndex + 1} de {totalExercises}
             </Text>
             <ProgressBar
               progress={progress}
@@ -318,28 +446,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  timerCircleActive: {
-    backgroundColor: "#E8F5E9",
-  },
+  timerCircleActive: {},
   timerNumber: {
     fontSize: 50,
     fontWeight: "600",
   },
   timerNumberActive: {
-    fontSize: 20,
+    fontSize: 50,
     fontWeight: "600",
-    color: "#2b7e1f",
-  },
-  timerLabel: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 4,
-    color: "#9ca3af",
-  },
-  timerLabelActive: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: "#2b7e1f",
   },
   timerSeparator: {
     fontSize: 50,
