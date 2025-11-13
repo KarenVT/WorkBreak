@@ -30,7 +30,7 @@ export default function ActiveBreakScreen() {
             <Text style={styles.description}>{parsedExercise?.description || 'Sigue las instrucciones durante la pausa activa.'}</Text>
 
             <Video
-                source={require('../../assets/videos/Es_hora_de_la_pausa_activa.mp4')}
+                source={require('../assets/videos/Es_hora_de_la_pausa_activa.mp4')}
                 style={styles.video}
                 resizeMode="contain"
                 shouldPlay={!isPaused}
