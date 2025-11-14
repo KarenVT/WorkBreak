@@ -13,6 +13,7 @@ export interface PomodoroConfig {
 export interface UseTimerOptions {
   config: PomodoroConfig;
   onComplete?: () => void;
+  onSessionComplete?: (type: SessionType, duration: number) => void;
 }
 
 export interface UseTimerReturn {
@@ -35,6 +36,7 @@ const DEFAULT_CYCLES = 4;
 export function useTimer({
   config,
   onComplete,
+  onSessionComplete,
 }: UseTimerOptions): UseTimerReturn {
   const { workInterval, shortBreak, longBreak, longBreakAfter } = config;
 
@@ -134,6 +136,12 @@ export function useTimer({
     ) {
       transitionProcessedRef.current = true;
 
+      // Registrar sesión completada
+      if (onSessionComplete && initialTimeRef.current > 0) {
+        const completedDuration = initialTimeRef.current;
+        onSessionComplete(sessionType, completedDuration);
+      }
+
       if (sessionType === "work") {
         setPomodorosInCurrentCycle((currentPomodoros) => {
           const newPomodorosCount = currentPomodoros + 1;
@@ -178,6 +186,7 @@ export function useTimer({
     longBreakAfter,
     totalCycles,
     onComplete,
+    onSessionComplete,
   ]);
 
   const start = useCallback(() => {

@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import ActiveBreakModal from "@/app/active-break";
 import { ThemedText } from "@/components/themed-text";
@@ -24,6 +24,7 @@ import {
   sendBreakStartNotification,
   sendPomodoroEndNotification,
 } from "@/services/notifications";
+import { statisticsDB } from "@/services/statistics-db";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -74,20 +75,36 @@ export default function HomeScreen() {
       longBreak: preferences.longBreak,
       longBreakAfter: preferences.longBreakAfter,
     },
-      onComplete: async () => {
-          console.log("Ciclo completado");
+    onComplete: async () => {
+      console.log("Ciclo completado");
 
-          if (sessionType === "work") {
-              try {
-                  const actual = await AsyncStorage.getItem("focusTime");
-                  const nuevo = actual ? parseInt(actual) + preferences.workInterval : preferences.workInterval;
-                  await AsyncStorage.setItem("focusTime", nuevo.toString());
-                  console.log("Tiempo de enfoque actualizado:", nuevo);
-              } catch (error) {
-                  console.error("Error al guardar tiempo de enfoque:", error);
-              }
-          }
+      if (sessionType === "work") {
+        try {
+          const actual = await AsyncStorage.getItem("focusTime");
+          const nuevo = actual
+            ? parseInt(actual) + preferences.workInterval
+            : preferences.workInterval;
+          await AsyncStorage.setItem("focusTime", nuevo.toString());
+          console.log("Tiempo de enfoque actualizado:", nuevo);
+        } catch (error) {
+          console.error("Error al guardar tiempo de enfoque:", error);
+        }
       }
+    },
+    onSessionComplete: async (type, duration) => {
+      // Registrar la sesión completada en las estadísticas
+      try {
+        await statisticsDB.init();
+        await statisticsDB.addSession(type, duration);
+        console.log(
+          `Sesión ${type} completada y registrada:`,
+          duration,
+          "segundos"
+        );
+      } catch (error) {
+        console.error("Error al registrar sesión en estadísticas:", error);
+      }
+    },
   });
 
   // Detectar cuando se entra en pausa corta o larga
@@ -328,24 +345,16 @@ export default function HomeScreen() {
   };
 
   const handleActiveBreakComplete = () => {
-      const guardarDescanso = async () => {
-          try {
-              const actual = await AsyncStorage.getItem("breaksToday");
-              const nuevo = actual ? parseInt(actual) + 1 : 1;
-              await AsyncStorage.setItem("breaksToday", nuevo.toString());
-              console.log("Descanso registrado:", nuevo);
-          } catch (error) {
-              console.error("Error al guardar descanso:", error);
-          }
-      };
+    // Cerrar el modal
+    setActiveBreakVisible(false);
+    setCurrentExercise(null);
+    setCurrentExercises([]);
 
-      guardarDescanso();
-
-      // Resto de tu lógica
-      setActiveBreakVisible(false);
-      setCurrentExercise(null);
-      setCurrentExercises([]);
-
+    // Avanzar al siguiente estado (de pausa a trabajo)
+    // skip() establece el estado a "idle" y el tiempo a 0, lo que activará
+    // el efecto de transición en use-timer.ts, que llamará a onSessionComplete
+    // para registrar las estadísticas correctamente
+    skip();
   };
 
   const getTimerTitle = () => {
