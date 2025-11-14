@@ -79,9 +79,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timeText: {
-    padding: 20,
+    paddingVertical: 40,
     fontSize: 60,
-    fontWeight: "bold",
+    fontWeight: "700",
     fontFamily: "monospace",
   },
 });

@@ -18,6 +18,10 @@ import {
   getRandomExercise,
   getRandomExercises,
 } from "@/services/exercises";
+import {
+  sendBreakStartNotification,
+  sendPomodoroEndNotification,
+} from "@/services/notifications";
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
@@ -81,6 +85,29 @@ export default function HomeScreen() {
     const justStartedBreak = isBreak && wasWork && !activeBreakVisible;
 
     if (justStartedBreak) {
+      // Enviar notificaciones cuando termina el pomodoro y cuando inicia el descanso
+      sendPomodoroEndNotification({
+        notificationsEnabled: preferences.notificationsEnabled,
+        pomodoroEndNotification: preferences.pomodoroEndNotification,
+        breakStartNotification: preferences.breakStartNotification,
+      }).catch((error) => {
+        console.error("Error enviando notificación de fin de pomodoro:", error);
+      });
+
+      sendBreakStartNotification(
+        {
+          notificationsEnabled: preferences.notificationsEnabled,
+          pomodoroEndNotification: preferences.pomodoroEndNotification,
+          breakStartNotification: preferences.breakStartNotification,
+        },
+        sessionType === "shortBreak" ? "shortBreak" : "longBreak"
+      ).catch((error) => {
+        console.error(
+          "Error enviando notificación de inicio de descanso:",
+          error
+        );
+      });
+
       // Obtener tipos de ejercicios habilitados
       const enabledTypes = exercisePreferences
         .filter((ex) => ex.enabled)
@@ -142,6 +169,9 @@ export default function HomeScreen() {
     exercisePreferences,
     preferences.shortBreak,
     preferences.longBreak,
+    preferences.notificationsEnabled,
+    preferences.pomodoroEndNotification,
+    preferences.breakStartNotification,
     state,
     exerciseMode,
   ]);

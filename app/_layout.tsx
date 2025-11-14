@@ -16,6 +16,9 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
+  // NO solicitamos permisos aquí para evitar cargar expo-notifications al inicio
+  // Los permisos se solicitarán automáticamente la primera vez que se intente enviar una notificación
+
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
