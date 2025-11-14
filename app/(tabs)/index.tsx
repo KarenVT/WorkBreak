@@ -157,6 +157,8 @@ export default function HomeScreen() {
           ? preferences.shortBreak * 60
           : preferences.longBreak * 60;
 
+      setBreakDuration(breakDurationSeconds);
+
       // Recalcular ejercicios si el modo es texto y cambió la duración
       if (exerciseMode === "text") {
         const enabledTypes = exercisePreferences
@@ -175,22 +177,15 @@ export default function HomeScreen() {
               (exercises) => {
                 setCurrentExercises(exercises);
                 setCurrentExercise(null);
-                setBreakDuration(breakDurationSeconds);
               }
             );
           } else {
             getRandomExercise(enabledTypes).then((exercise) => {
               setCurrentExercise(exercise);
               setCurrentExercises([]);
-              setBreakDuration(breakDurationSeconds);
             });
           }
-        } else {
-          setBreakDuration(breakDurationSeconds);
         }
-      } else {
-        // Modo video, solo actualizar duración
-        setBreakDuration(breakDurationSeconds);
       }
     }
   }, [

@@ -5,7 +5,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Exercise } from "@/services/exercises";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Modal,
   SafeAreaView,
@@ -58,15 +58,14 @@ export default function ActiveBreakModal({
   // Estado para el ejercicio actual (índice)
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
-  // Calcular la duración del ejercicio actual
+  // Calcular la duración del ejercicio actual (solo para determinar cuándo cambiar ejercicios)
   const currentExerciseDuration = isMultipleExercises
     ? EXERCISE_DURATION_SECONDS
     : totalDuration;
 
-  // Temporizador independiente para el modal
-  const [modalTimeRemaining, setModalTimeRemaining] = useState(
-    currentExerciseDuration
-  );
+  // El temporizador del modal siempre muestra el tiempo total restante de la pausa
+  // No se reinicia por ejercicio, solo los ejercicios cambian automáticamente
+  const [modalTimeRemaining, setModalTimeRemaining] = useState(totalDuration);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Crear el reproductor de video (siempre se crea, pero solo se usa cuando mode === "video")
@@ -78,62 +77,44 @@ export default function ActiveBreakModal({
     }
   );
 
-  // Referencias para rastrear cambios
-  const previousTotalDurationRef = useRef<number>(0);
-  const previousIsMultipleRef = useRef<boolean>(false);
-  const previousExercisesLengthRef = useRef<number>(0);
+  // Referencia para rastrear si es la primera vez que se abre el modal
+  const isFirstOpenRef = useRef(true);
+  const previousVisibleRef = useRef(false);
 
-  // Inicializar el temporizador del modal cuando se abre o cambia la configuración
+  // Inicializar el temporizador del modal cuando se abre por primera vez
   useEffect(() => {
     if (visible && totalDuration > 0) {
-      // Detectar si es la primera vez que se abre
-      const isFirstOpen = previousTotalDurationRef.current === 0;
-      // Detectar si cambió el modo (múltiple <-> único)
-      const modeChanged = previousIsMultipleRef.current !== isMultipleExercises;
-      // Detectar si cambió la cantidad de ejercicios (en modo múltiple)
-      const exercisesChanged =
-        isMultipleExercises &&
-        previousExercisesLengthRef.current !== exercises.length;
-      // Detectar si cambió la duración total
-      const durationChanged =
-        totalDuration !== previousTotalDurationRef.current;
-
-      if (isFirstOpen || modeChanged || exercisesChanged) {
-        // Resetear completamente cuando cambia el modo o los ejercicios
-        const duration = isMultipleExercises
-          ? currentExerciseDuration
-          : totalDuration;
-        setModalTimeRemaining(duration);
+      // Si el modal acaba de abrirse (no estaba visible antes)
+      if (!previousVisibleRef.current || isFirstOpenRef.current) {
+        // Primera vez que se abre: inicializar con el tiempo total de la pausa
+        setModalTimeRemaining(totalDuration);
         setCurrentExerciseIndex(0);
+        isFirstOpenRef.current = false;
+
+        // Inicializar referencias de seguimiento
         previousTotalDurationRef.current = totalDuration;
-        previousIsMultipleRef.current = isMultipleExercises;
         previousExercisesLengthRef.current = exercises.length;
-      } else if (durationChanged && !isMultipleExercises) {
-        // Si solo cambió la duración en modo único, ajustar proporcionalmente
-        const ratio = totalDuration / previousTotalDurationRef.current;
-        setModalTimeRemaining((prev) =>
-          Math.max(0, Math.min(totalDuration, Math.floor(prev * ratio)))
-        );
-        previousTotalDurationRef.current = totalDuration;
-      } else if (durationChanged && isMultipleExercises) {
-        // En modo múltiple, si cambió la duración, los ejercicios ya se recalculan arriba
-        // Solo actualizar la referencia
-        previousTotalDurationRef.current = totalDuration;
+        previousExerciseIdRef.current = exercise?.id || null;
+        previousIsMultipleRef.current = isMultipleExercises;
       }
+      previousVisibleRef.current = true;
     } else if (!visible) {
       // Detener el temporizador cuando el modal se cierra
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      const duration = isMultipleExercises
-        ? currentExerciseDuration
-        : totalDuration;
-      setModalTimeRemaining(duration);
+      // Resetear al tiempo total cuando se cierra
+      setModalTimeRemaining(totalDuration);
       setCurrentExerciseIndex(0);
+      isFirstOpenRef.current = true; // Resetear para la próxima vez
+      previousVisibleRef.current = false;
+
+      // Resetear referencias cuando se cierra el modal
       previousTotalDurationRef.current = 0;
-      previousIsMultipleRef.current = false;
       previousExercisesLengthRef.current = 0;
+      previousExerciseIdRef.current = null;
+      previousIsMultipleRef.current = false;
     }
   }, [
     visible,
@@ -141,30 +122,169 @@ export default function ActiveBreakModal({
     isMultipleExercises,
     currentExerciseDuration,
     exercises.length,
+    exercise?.id,
   ]);
 
-  // Controlar el temporizador del modal
+  // Referencias para rastrear cambios
+  const previousTotalDurationRef = useRef<number>(0);
+  const previousExercisesLengthRef = useRef<number>(0);
+  const previousExerciseIdRef = useRef<string | null>(null);
+  const previousIsMultipleRef = useRef<boolean>(false);
+
+  // Función helper para sincronizar el temporizador
+  const syncTimer = useCallback(() => {
+    if (
+      !visible ||
+      totalDuration === 0 ||
+      isFirstOpenRef.current ||
+      !previousVisibleRef.current
+    ) {
+      return;
+    }
+
+    // El modal ya estaba abierto, sincronizar con el tiempo restante del temporizador principal
+    if (isMultipleExercises && totalExercises > 0) {
+      // En modo múltiple, calcular en qué ejercicio estamos basado en el tiempo transcurrido
+      const EXERCISE_DURATION_SECONDS = 60;
+
+      // Calcular el tiempo transcurrido basado en el tiempo restante del temporizador principal
+      // Si timeRemaining es mayor que totalDuration, significa que cambió la configuración
+      // En ese caso, calcular proporcionalmente o usar el nuevo totalDuration
+      let elapsedTime = 0;
+      const previousDuration =
+        previousTotalDurationRef.current || totalDuration;
+
+      if (
+        timeRemaining > totalDuration &&
+        previousDuration > 0 &&
+        previousDuration !== totalDuration
+      ) {
+        // La configuración cambió y el tiempo restante es mayor que la nueva duración
+        // Calcular proporcionalmente basado en el tiempo transcurrido anterior
+        const previousRemaining = Math.min(timeRemaining, previousDuration);
+        const previousElapsed = previousDuration - previousRemaining;
+        // Calcular proporción del tiempo transcurrido (0 a 1)
+        const elapsedRatio = Math.max(
+          0,
+          Math.min(1, previousElapsed / previousDuration)
+        );
+        // Aplicar la misma proporción al nuevo totalDuration
+        elapsedTime = Math.floor(totalDuration * elapsedRatio);
+      } else if (timeRemaining <= totalDuration) {
+        // Normal: calcular basado en la diferencia
+        elapsedTime = totalDuration - timeRemaining;
+      } else {
+        // Caso especial: timeRemaining > totalDuration pero no hay previousDuration válido
+        // Usar 0 como tiempo transcurrido (empezar desde el principio)
+        elapsedTime = 0;
+      }
+
+      const exercisesCompleted = Math.floor(
+        elapsedTime / EXERCISE_DURATION_SECONDS
+      );
+      const newIndex = Math.min(exercisesCompleted, totalExercises - 1);
+
+      setCurrentExerciseIndex(Math.max(0, newIndex));
+      // El temporizador siempre muestra el tiempo total restante, no por ejercicio
+      setModalTimeRemaining(Math.max(0, timeRemaining));
+    } else {
+      // En modo único, sincronizar directamente con el tiempo restante del temporizador principal
+      setCurrentExerciseIndex(0);
+      setModalTimeRemaining(Math.max(0, timeRemaining));
+    }
+  }, [
+    visible,
+    totalDuration,
+    isMultipleExercises,
+    totalExercises,
+    timeRemaining,
+  ]);
+
+  // Sincronizar cuando cambia totalDuration mientras el modal está abierto
+  useEffect(() => {
+    if (
+      visible &&
+      totalDuration > 0 &&
+      !isFirstOpenRef.current &&
+      previousVisibleRef.current
+    ) {
+      const durationChanged =
+        previousTotalDurationRef.current !== totalDuration;
+
+      if (durationChanged) {
+        // En modo video, sincronizar inmediatamente
+        // En modo texto, esperar a que los ejercicios se actualicen (se sincronizará en el otro useEffect)
+        if (mode === "video") {
+          syncTimer();
+        }
+        // Actualizar la referencia de duración
+        previousTotalDurationRef.current = totalDuration;
+      }
+    }
+  }, [visible, totalDuration, timeRemaining, syncTimer, mode]);
+
+  // Sincronizar cuando cambian los ejercicios o la duración (en modo texto)
+  useEffect(() => {
+    if (
+      visible &&
+      totalDuration > 0 &&
+      !isFirstOpenRef.current &&
+      previousVisibleRef.current
+    ) {
+      const durationChanged =
+        previousTotalDurationRef.current !== totalDuration;
+      const exercisesLengthChanged =
+        previousExercisesLengthRef.current !== exercises.length;
+      const exerciseIdChanged = exercise?.id !== previousExerciseIdRef.current;
+      const modeChanged = previousIsMultipleRef.current !== isMultipleExercises;
+
+      // En modo texto: sincronizar cuando cambia la duración O cuando cambian los ejercicios
+      // En modo video: solo sincronizar cuando cambian los ejercicios (la duración ya se maneja arriba)
+      const shouldSync =
+        mode === "text"
+          ? durationChanged ||
+            exercisesLengthChanged ||
+            exerciseIdChanged ||
+            modeChanged
+          : exercisesLengthChanged || exerciseIdChanged || modeChanged;
+
+      if (shouldSync) {
+        syncTimer();
+
+        // Actualizar todas las referencias
+        if (durationChanged) {
+          previousTotalDurationRef.current = totalDuration;
+        }
+        if (exercisesLengthChanged || exerciseIdChanged || modeChanged) {
+          previousExercisesLengthRef.current = exercises.length;
+          previousExerciseIdRef.current = exercise?.id || null;
+          previousIsMultipleRef.current = isMultipleExercises;
+        }
+      }
+    }
+  }, [
+    visible,
+    isMultipleExercises,
+    timeRemaining,
+    totalExercises,
+    exercises.length,
+    exercise?.id,
+    syncTimer,
+    totalDuration,
+    mode,
+  ]);
+
+  // Controlar el temporizador del modal (siempre muestra el tiempo total)
   useEffect(() => {
     if (visible && modalTimeRemaining > 0 && !isPaused) {
       intervalRef.current = setInterval(() => {
         setModalTimeRemaining((prev) => {
           if (prev <= 1) {
-            // Cuando llega a 0, verificar si hay más ejercicios
-            if (
-              isMultipleExercises &&
-              currentExerciseIndex < totalExercises - 1
-            ) {
-              // Cambiar al siguiente ejercicio
-              const nextIndex = currentExerciseIndex + 1;
-              setCurrentExerciseIndex(nextIndex);
-              return currentExerciseDuration; // Reiniciar con la duración del siguiente ejercicio
-            } else {
-              // Completar todos los ejercicios
-              setTimeout(() => {
-                onComplete();
-              }, 500);
-              return 0;
-            }
+            // Cuando llega a 0, completar la pausa
+            setTimeout(() => {
+              onComplete();
+            }, 500);
+            return 0;
           }
           return prev - 1;
         });
@@ -182,27 +302,40 @@ export default function ActiveBreakModal({
         intervalRef.current = null;
       }
     };
-  }, [
-    visible,
-    modalTimeRemaining,
-    isPaused,
-    onComplete,
-    isMultipleExercises,
-    currentExerciseIndex,
-    totalExercises,
-    currentExerciseDuration,
-  ]);
+  }, [visible, modalTimeRemaining, isPaused, onComplete]);
 
-  // Reiniciar el temporizador cuando cambia el ejercicio actual (solo para múltiples ejercicios)
+  // Cambiar ejercicios automáticamente cada 60 segundos (solo en modo múltiple)
   useEffect(() => {
-    if (visible && isMultipleExercises && currentExerciseIndex > 0) {
-      setModalTimeRemaining(currentExerciseDuration);
+    if (
+      visible &&
+      isMultipleExercises &&
+      totalExercises > 1 &&
+      !isPaused &&
+      modalTimeRemaining > 0
+    ) {
+      const EXERCISE_DURATION_SECONDS = 60;
+      const elapsedTime = totalDuration - modalTimeRemaining;
+      const exercisesCompleted = Math.floor(
+        elapsedTime / EXERCISE_DURATION_SECONDS
+      );
+      const expectedIndex = Math.min(exercisesCompleted, totalExercises - 1);
+
+      // Cambiar al ejercicio correspondiente si es diferente al actual
+      if (
+        expectedIndex !== currentExerciseIndex &&
+        expectedIndex < totalExercises
+      ) {
+        setCurrentExerciseIndex(expectedIndex);
+      }
     }
   }, [
     visible,
     isMultipleExercises,
+    totalExercises,
+    modalTimeRemaining,
+    totalDuration,
+    isPaused,
     currentExerciseIndex,
-    currentExerciseDuration,
   ]);
 
   // Controlar la reproducción del video según el estado de pausa y visibilidad
@@ -231,27 +364,15 @@ export default function ActiveBreakModal({
   const minutes = Math.floor(modalTimeRemaining / 60);
   const seconds = modalTimeRemaining % 60;
 
-  // Calcular el progreso: cuanto tiempo ha pasado del ejercicio actual
+  // Calcular el progreso: cuanto tiempo ha pasado del tiempo total de la pausa
   // Asegurarse de que el progreso esté entre 0 y 1
-  const elapsedTime = currentExerciseDuration - modalTimeRemaining;
-  const progress = Math.max(
-    0,
-    Math.min(1, elapsedTime / currentExerciseDuration)
-  );
+  const elapsedTime = totalDuration - modalTimeRemaining;
+  const progress = Math.max(0, Math.min(1, elapsedTime / totalDuration));
 
   const handlePrevious = () => {
-    // Calcular el tiempo restante total de la pausa
-    let remainingTime = modalTimeRemaining;
-
-    if (isMultipleExercises) {
-      // Calcular tiempo restante de ejercicios pendientes
-      const remainingExercises = totalExercises - currentExerciseIndex - 1;
-      remainingTime =
-        modalTimeRemaining + remainingExercises * EXERCISE_DURATION_SECONDS;
-    }
-
+    // El tiempo restante siempre es el tiempo total de la pausa
     // Cerrar el modal y pasar el tiempo restante para sincronizar el temporizador principal
-    onClose(remainingTime);
+    onClose(modalTimeRemaining);
   };
 
   return (
