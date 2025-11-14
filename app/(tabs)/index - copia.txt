@@ -3,8 +3,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import ActiveBreakModal from "@/app/active-break";
 import { ThemedText } from "@/components/themed-text";
 import { CircularTimer } from "@/components/timer/circular-timer";
@@ -70,20 +68,10 @@ export default function HomeScreen() {
       longBreak: preferences.longBreak,
       longBreakAfter: preferences.longBreakAfter,
     },
-      onComplete: async () => {
-          console.log("Ciclo completado");
-
-          if (sessionType === "work") {
-              try {
-                  const actual = await AsyncStorage.getItem("focusTime");
-                  const nuevo = actual ? parseInt(actual) + preferences.workInterval : preferences.workInterval;
-                  await AsyncStorage.setItem("focusTime", nuevo.toString());
-                  console.log("Tiempo de enfoque actualizado:", nuevo);
-              } catch (error) {
-                  console.error("Error al guardar tiempo de enfoque:", error);
-              }
-          }
-      }
+    onComplete: () => {
+      // Aquí puedes agregar lógica adicional cuando se complete un ciclo
+      console.log("Ciclo completado");
+    },
   });
 
   // Detectar cuando se entra en pausa corta o larga
@@ -169,8 +157,6 @@ export default function HomeScreen() {
           ? preferences.shortBreak * 60
           : preferences.longBreak * 60;
 
-      setBreakDuration(breakDurationSeconds);
-
       // Recalcular ejercicios si el modo es texto y cambió la duración
       if (exerciseMode === "text") {
         const enabledTypes = exercisePreferences
@@ -189,15 +175,22 @@ export default function HomeScreen() {
               (exercises) => {
                 setCurrentExercises(exercises);
                 setCurrentExercise(null);
+                setBreakDuration(breakDurationSeconds);
               }
             );
           } else {
             getRandomExercise(enabledTypes).then((exercise) => {
               setCurrentExercise(exercise);
               setCurrentExercises([]);
+              setBreakDuration(breakDurationSeconds);
             });
           }
+        } else {
+          setBreakDuration(breakDurationSeconds);
         }
+      } else {
+        // Modo video, solo actualizar duración
+        setBreakDuration(breakDurationSeconds);
       }
     }
   }, [
@@ -298,24 +291,10 @@ export default function HomeScreen() {
   };
 
   const handleActiveBreakComplete = () => {
-      const guardarDescanso = async () => {
-          try {
-              const actual = await AsyncStorage.getItem("breaksToday");
-              const nuevo = actual ? parseInt(actual) + 1 : 1;
-              await AsyncStorage.setItem("breaksToday", nuevo.toString());
-              console.log("Descanso registrado:", nuevo);
-          } catch (error) {
-              console.error("Error al guardar descanso:", error);
-          }
-      };
-
-      guardarDescanso();
-
-      // Resto de tu lógica
-      setActiveBreakVisible(false);
-      setCurrentExercise(null);
-      setCurrentExercises([]);
-
+    setActiveBreakVisible(false);
+    setCurrentExercise(null);
+    setCurrentExercises([]);
+    // El temporizador continúa normalmente
   };
 
   const getTimerTitle = () => {
