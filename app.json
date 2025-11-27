@@ -54,8 +54,8 @@
           "color": "#4CAF50",
           "sounds": [
             "./assets/sounds/bell.wav",
-            "./assets/sounds/chime.mp3",
-            "./assets/sounds/alert.mp3",
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/alert.wav",
             "./assets/sounds/notification.wav",
             "./assets/sounds/ringtone.wav"
           ]

@@ -324,8 +324,8 @@ export async function sendPomodoroEndNotification(
       // En Android, el canal puede necesitar el nombre con extensión
       const soundFileMap: Record<string, { base: string; withExt: string }> = {
         bell: { base: "bell", withExt: "bell.wav" },
-        chime: { base: "chime", withExt: "chime.mp3" },
-        alert: { base: "alert", withExt: "alert.mp3" },
+        chime: { base: "chime", withExt: "chime.wav" },
+        alert: { base: "alert", withExt: "alert.wav" },
         notification: { base: "notification", withExt: "notification.wav" },
         ringtone: { base: "ringtone", withExt: "ringtone.wav" },
       };
@@ -337,179 +337,118 @@ export async function sendPomodoroEndNotification(
           sound = soundFile.base;
 
           // En Android, crear un canal específico para cada sonido
-          // El sonido debe venir del canal, no de la notificación individual
+          // SOLUCIÓN DEFINITIVA: Cada sonido tiene su propio canal único
+          // Android NO permite modificar canales existentes, así que:
+          // - Si el canal ya existe, lo usamos directamente (nunca lo eliminamos)
+          // - Si no existe, lo creamos
+          // - NUNCA reutilizamos un canal para cambiar el sonido
           if (Platform.OS === "android") {
             try {
               customChannelId = `workbreak_${soundFile.base}`;
-
-              // DIAGNÓSTICO: Listar todos los canales ANTES de eliminar
-              try {
-                const channelsBefore =
-                  await Notifications.getNotificationChannelsAsync();
-                console.log(
-                  `📋 Canales ANTES de eliminar (${channelsBefore.length} total):`,
-                  channelsBefore.map((c) => ({
-                    id: c.id,
-                    sound: c.sound,
-                    importance: c.importance,
-                  }))
-                );
-              } catch (err) {
-                console.warn("⚠ No se pudieron listar canales:", err);
-              }
-
-              // CRÍTICO: Cancelar todas las notificaciones programadas antes de eliminar el canal
-              // Android no permite eliminar canales que tienen notificaciones activas
-              try {
-                await Notifications.cancelAllScheduledNotificationsAsync();
-                console.log(
-                  `🗑️ Notificaciones programadas canceladas antes de eliminar canal`
-                );
-                // Esperar un momento para que Android procese la cancelación
-                await new Promise((resolve) => setTimeout(resolve, 200));
-              } catch (cancelError) {
-                console.warn(
-                  "⚠ No se pudieron cancelar notificaciones:",
-                  cancelError
-                );
-              }
-
-              // Eliminar el canal específico si existe para recrearlo
-              // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
-              try {
-                await Notifications.deleteNotificationChannelAsync(
-                  customChannelId
-                );
-                console.log(`🗑️ Canal eliminado: ${customChannelId}`);
-              } catch (deleteError) {
-                // Ignorar si el canal no existe (es normal la primera vez)
-                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
-              }
-
-              // Esperar más tiempo después de eliminar el canal (Android necesita tiempo)
-              await new Promise((resolve) => setTimeout(resolve, 600));
-
-              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente (múltiples intentos)
-              let canalExiste = true;
-              let intentos = 0;
-              const maxIntentos = 3;
-
-              while (canalExiste && intentos < maxIntentos) {
-                try {
-                  const channelsAfter =
-                    await Notifications.getNotificationChannelsAsync();
-                  canalExiste = channelsAfter.some(
-                    (c) => c.id === customChannelId
-                  );
-
-                  if (canalExiste) {
-                    intentos++;
-                    console.warn(
-                      `⚠ Intento ${intentos}/${maxIntentos}: El canal ${customChannelId} aún existe. Esperando más tiempo...`
-                    );
-                    if (intentos < maxIntentos) {
-                      // Intentar cancelar notificaciones nuevamente
-                      try {
-                        await Notifications.cancelAllScheduledNotificationsAsync();
-                        await Notifications.deleteNotificationChannelAsync(
-                          customChannelId
-                        );
-                      } catch {}
-                      await new Promise((resolve) => setTimeout(resolve, 500));
-                    }
-                  } else {
-                    console.log(
-                      `✅ Canal ${customChannelId} eliminado correctamente (intento ${
-                        intentos + 1
-                      })`
-                    );
-                    break;
-                  }
-                } catch (err) {
-                  console.warn("⚠ No se pudo verificar eliminación:", err);
-                  break;
-                }
-              }
-
-              if (canalExiste) {
-                console.error(
-                  `❌ ERROR CRÍTICO: El canal ${customChannelId} NO se pudo eliminar después de ${maxIntentos} intentos.`
-                );
-                console.error(
-                  `❌ SOLUCIÓN: Desinstala y reinstala la app, o reinicia el dispositivo para limpiar los canales.`
-                );
-              }
-
-              // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
-              // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
-              // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
               const channelSoundName = soundFile.base; // Usar nombre SIN extensión
 
-              console.log(
-                `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
-              );
-
-              await Notifications.setNotificationChannelAsync(customChannelId, {
-                name: `Notificaciones WorkBreak`,
-                description: `Notificaciones con sonido ${soundFile.base}`,
-                importance: Notifications.AndroidImportance.HIGH,
-                vibrationPattern: [0, 250, 250, 250],
-                lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
-                enableVibrate: true,
-                showBadge: true,
-              });
-
-              // Esperar 800ms después de crear el canal antes de usarlo
-              await new Promise((resolve) => setTimeout(resolve, 800));
-
-              console.log(
-                `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
-              );
-
-              // Verificar que el canal se creó correctamente
+              // Verificar si el canal ya existe
+              let canalExiste = false;
               try {
-                const channel = await Notifications.getNotificationChannelAsync(
-                  customChannelId
-                );
+                const existingChannel =
+                  await Notifications.getNotificationChannelAsync(
+                    customChannelId
+                  );
+                canalExiste = !!existingChannel;
+
+                if (canalExiste) {
+                  console.log(
+                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente sin recrearlo.`
+                  );
+                  console.log(
+                    `🔍 Canal existente - ID: ${existingChannel?.id}, Sonido: "${existingChannel?.sound}", Importancia: ${existingChannel?.importance}`
+                  );
+                  // El canal ya existe con el sonido correcto, no necesitamos recrearlo
+                  // Android no permite modificar canales, pero como cada sonido tiene su propio ID único,
+                  // este canal siempre tendrá el sonido correcto
+                }
+              } catch (checkError) {
+                // El canal no existe, lo crearemos a continuación
+                canalExiste = false;
                 console.log(
-                  `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
+                  `ℹ Canal ${customChannelId} no existe. Se creará ahora.`
+                );
+              }
+
+              // Solo crear el canal si no existe
+              if (!canalExiste) {
+                console.log(
+                  `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
                 );
 
-                // Verificar que el sonido se configuró correctamente
-                // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
-                // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
-                if (
-                  !channel?.sound ||
-                  channel.sound === "default" ||
-                  channel.sound === null
-                ) {
+                await Notifications.setNotificationChannelAsync(
+                  customChannelId,
+                  {
+                    name: `Notificaciones WorkBreak`,
+                    description: `Notificaciones con sonido ${soundFile.base}`,
+                    importance: Notifications.AndroidImportance.HIGH,
+                    vibrationPattern: [0, 250, 250, 250],
+                    lightColor: "#4CAF50",
+                    sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
+                    enableVibrate: true,
+                    showBadge: true,
+                  }
+                );
+
+                // Esperar 800ms después de crear el canal antes de usarlo
+                await new Promise((resolve) => setTimeout(resolve, 800));
+
+                console.log(
+                  `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
+                );
+
+                // Verificar que el canal se creó correctamente
+                try {
+                  const channel =
+                    await Notifications.getNotificationChannelAsync(
+                      customChannelId
+                    );
+                  console.log(
+                    `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
+                  );
+
+                  // Verificar que el sonido se configuró correctamente
+                  // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
+                  // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
+                  if (
+                    !channel?.sound ||
+                    channel.sound === "default" ||
+                    channel.sound === null
+                  ) {
+                    console.error(
+                      `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
+                    );
+                    console.error(
+                      `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
+                    );
+                  } else if (channel.sound === "custom") {
+                    // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
+                    console.log(
+                      `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
+                    );
+                    console.log(
+                      `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
+                    );
+                  } else if (channel.sound !== channelSoundName) {
+                    console.warn(
+                      `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
+                    );
+                  } else {
+                    console.log(
+                      `✅ Sonido configurado correctamente: "${channel.sound}"`
+                    );
+                  }
+                } catch (verifyError) {
                   console.error(
-                    `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
-                  );
-                  console.error(
-                    `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
-                  );
-                } else if (channel.sound === "custom") {
-                  // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
-                  console.log(
-                    `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
-                  );
-                  console.log(
-                    `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
-                  );
-                } else if (channel.sound !== channelSoundName) {
-                  console.warn(
-                    `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
-                  );
-                } else {
-                  console.log(
-                    `✅ Sonido configurado correctamente: "${channel.sound}"`
+                    "❌ No se pudo verificar el canal:",
+                    verifyError
                   );
                 }
-              } catch (verifyError) {
-                console.error("❌ No se pudo verificar el canal:", verifyError);
               }
             } catch (error) {
               console.error(
@@ -652,8 +591,8 @@ export async function sendBreakStartNotification(
       // En Android, el canal puede necesitar el nombre con extensión
       const soundFileMap: Record<string, { base: string; withExt: string }> = {
         bell: { base: "bell", withExt: "bell.wav" },
-        chime: { base: "chime", withExt: "chime.mp3" },
-        alert: { base: "alert", withExt: "alert.mp3" },
+        chime: { base: "chime", withExt: "chime.wav" },
+        alert: { base: "alert", withExt: "alert.wav" },
         notification: { base: "notification", withExt: "notification.wav" },
         ringtone: { base: "ringtone", withExt: "ringtone.wav" },
       };
@@ -665,179 +604,118 @@ export async function sendBreakStartNotification(
         const soundFile = soundFileMap[soundName];
         if (soundFile) {
           // En Android, crear un canal específico para cada sonido
-          // El sonido debe venir del canal, no de la notificación individual
+          // SOLUCIÓN DEFINITIVA: Cada sonido tiene su propio canal único
+          // Android NO permite modificar canales existentes, así que:
+          // - Si el canal ya existe, lo usamos directamente (nunca lo eliminamos)
+          // - Si no existe, lo creamos
+          // - NUNCA reutilizamos un canal para cambiar el sonido
           if (Platform.OS === "android") {
             try {
               customChannelId = `workbreak_${soundFile.base}`;
-
-              // DIAGNÓSTICO: Listar todos los canales ANTES de eliminar
-              try {
-                const channelsBefore =
-                  await Notifications.getNotificationChannelsAsync();
-                console.log(
-                  `📋 Canales ANTES de eliminar (${channelsBefore.length} total):`,
-                  channelsBefore.map((c) => ({
-                    id: c.id,
-                    sound: c.sound,
-                    importance: c.importance,
-                  }))
-                );
-              } catch (err) {
-                console.warn("⚠ No se pudieron listar canales:", err);
-              }
-
-              // CRÍTICO: Cancelar todas las notificaciones programadas antes de eliminar el canal
-              // Android no permite eliminar canales que tienen notificaciones activas
-              try {
-                await Notifications.cancelAllScheduledNotificationsAsync();
-                console.log(
-                  `🗑️ Notificaciones programadas canceladas antes de eliminar canal`
-                );
-                // Esperar un momento para que Android procese la cancelación
-                await new Promise((resolve) => setTimeout(resolve, 200));
-              } catch (cancelError) {
-                console.warn(
-                  "⚠ No se pudieron cancelar notificaciones:",
-                  cancelError
-                );
-              }
-
-              // Eliminar el canal específico si existe para recrearlo
-              // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
-              try {
-                await Notifications.deleteNotificationChannelAsync(
-                  customChannelId
-                );
-                console.log(`🗑️ Canal eliminado: ${customChannelId}`);
-              } catch (deleteError) {
-                // Ignorar si el canal no existe (es normal la primera vez)
-                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
-              }
-
-              // Esperar más tiempo después de eliminar el canal (Android necesita tiempo)
-              await new Promise((resolve) => setTimeout(resolve, 600));
-
-              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente (múltiples intentos)
-              let canalExiste = true;
-              let intentos = 0;
-              const maxIntentos = 3;
-
-              while (canalExiste && intentos < maxIntentos) {
-                try {
-                  const channelsAfter =
-                    await Notifications.getNotificationChannelsAsync();
-                  canalExiste = channelsAfter.some(
-                    (c) => c.id === customChannelId
-                  );
-
-                  if (canalExiste) {
-                    intentos++;
-                    console.warn(
-                      `⚠ Intento ${intentos}/${maxIntentos}: El canal ${customChannelId} aún existe. Esperando más tiempo...`
-                    );
-                    if (intentos < maxIntentos) {
-                      // Intentar cancelar notificaciones nuevamente
-                      try {
-                        await Notifications.cancelAllScheduledNotificationsAsync();
-                        await Notifications.deleteNotificationChannelAsync(
-                          customChannelId
-                        );
-                      } catch {}
-                      await new Promise((resolve) => setTimeout(resolve, 500));
-                    }
-                  } else {
-                    console.log(
-                      `✅ Canal ${customChannelId} eliminado correctamente (intento ${
-                        intentos + 1
-                      })`
-                    );
-                    break;
-                  }
-                } catch (err) {
-                  console.warn("⚠ No se pudo verificar eliminación:", err);
-                  break;
-                }
-              }
-
-              if (canalExiste) {
-                console.error(
-                  `❌ ERROR CRÍTICO: El canal ${customChannelId} NO se pudo eliminar después de ${maxIntentos} intentos.`
-                );
-                console.error(
-                  `❌ SOLUCIÓN: Desinstala y reinstala la app, o reinicia el dispositivo para limpiar los canales.`
-                );
-              }
-
-              // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
-              // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
-              // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
               const channelSoundName = soundFile.base; // Usar nombre SIN extensión
 
-              console.log(
-                `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
-              );
-
-              await Notifications.setNotificationChannelAsync(customChannelId, {
-                name: `Notificaciones WorkBreak`,
-                description: `Notificaciones con sonido ${soundFile.base}`,
-                importance: Notifications.AndroidImportance.HIGH,
-                vibrationPattern: [0, 250, 250, 250],
-                lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
-                enableVibrate: true,
-                showBadge: true,
-              });
-
-              // Esperar 800ms después de crear el canal antes de usarlo
-              await new Promise((resolve) => setTimeout(resolve, 800));
-
-              console.log(
-                `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
-              );
-
-              // Verificar que el canal se creó correctamente
+              // Verificar si el canal ya existe
+              let canalExiste = false;
               try {
-                const channel = await Notifications.getNotificationChannelAsync(
-                  customChannelId
-                );
+                const existingChannel =
+                  await Notifications.getNotificationChannelAsync(
+                    customChannelId
+                  );
+                canalExiste = !!existingChannel;
+
+                if (canalExiste) {
+                  console.log(
+                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente sin recrearlo.`
+                  );
+                  console.log(
+                    `🔍 Canal existente - ID: ${existingChannel?.id}, Sonido: "${existingChannel?.sound}", Importancia: ${existingChannel?.importance}`
+                  );
+                  // El canal ya existe con el sonido correcto, no necesitamos recrearlo
+                  // Android no permite modificar canales, pero como cada sonido tiene su propio ID único,
+                  // este canal siempre tendrá el sonido correcto
+                }
+              } catch (checkError) {
+                // El canal no existe, lo crearemos a continuación
+                canalExiste = false;
                 console.log(
-                  `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
+                  `ℹ Canal ${customChannelId} no existe. Se creará ahora.`
+                );
+              }
+
+              // Solo crear el canal si no existe
+              if (!canalExiste) {
+                console.log(
+                  `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
                 );
 
-                // Verificar que el sonido se configuró correctamente
-                // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
-                // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
-                if (
-                  !channel?.sound ||
-                  channel.sound === "default" ||
-                  channel.sound === null
-                ) {
+                await Notifications.setNotificationChannelAsync(
+                  customChannelId,
+                  {
+                    name: `Notificaciones WorkBreak`,
+                    description: `Notificaciones con sonido ${soundFile.base}`,
+                    importance: Notifications.AndroidImportance.HIGH,
+                    vibrationPattern: [0, 250, 250, 250],
+                    lightColor: "#4CAF50",
+                    sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
+                    enableVibrate: true,
+                    showBadge: true,
+                  }
+                );
+
+                // Esperar 800ms después de crear el canal antes de usarlo
+                await new Promise((resolve) => setTimeout(resolve, 800));
+
+                console.log(
+                  `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
+                );
+
+                // Verificar que el canal se creó correctamente
+                try {
+                  const channel =
+                    await Notifications.getNotificationChannelAsync(
+                      customChannelId
+                    );
+                  console.log(
+                    `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
+                  );
+
+                  // Verificar que el sonido se configuró correctamente
+                  // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
+                  // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
+                  if (
+                    !channel?.sound ||
+                    channel.sound === "default" ||
+                    channel.sound === null
+                  ) {
+                    console.error(
+                      `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
+                    );
+                    console.error(
+                      `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
+                    );
+                  } else if (channel.sound === "custom") {
+                    // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
+                    console.log(
+                      `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
+                    );
+                    console.log(
+                      `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
+                    );
+                  } else if (channel.sound !== channelSoundName) {
+                    console.warn(
+                      `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
+                    );
+                  } else {
+                    console.log(
+                      `✅ Sonido configurado correctamente: "${channel.sound}"`
+                    );
+                  }
+                } catch (verifyError) {
                   console.error(
-                    `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
-                  );
-                  console.error(
-                    `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
-                  );
-                } else if (channel.sound === "custom") {
-                  // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
-                  console.log(
-                    `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
-                  );
-                  console.log(
-                    `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
-                  );
-                } else if (channel.sound !== channelSoundName) {
-                  console.warn(
-                    `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
-                  );
-                } else {
-                  console.log(
-                    `✅ Sonido configurado correctamente: "${channel.sound}"`
+                    "❌ No se pudo verificar el canal:",
+                    verifyError
                   );
                 }
-              } catch (verifyError) {
-                console.error("❌ No se pudo verificar el canal:", verifyError);
               }
             } catch (error) {
               console.error(

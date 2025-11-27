@@ -67,8 +67,8 @@ export const SYSTEM_SOUNDS: SystemSound[] = [
 // Mapeo de sonidos a sus archivos
 const SOUND_FILE_MAP: Record<string, any> = {
   bell: require("@/assets/sounds/bell.wav"),
-  chime: require("@/assets/sounds/chime.mp3"),
-  alert: require("@/assets/sounds/alert.mp3"),
+  chime: require("@/assets/sounds/chime.wav"),
+  alert: require("@/assets/sounds/alert.wav"),
   notification: require("@/assets/sounds/notification.wav"),
   ringtone: require("@/assets/sounds/ringtone.wav"),
 };
