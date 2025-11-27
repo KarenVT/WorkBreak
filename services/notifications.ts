@@ -342,24 +342,66 @@ export async function sendPomodoroEndNotification(
             try {
               customChannelId = `workbreak_${soundFile.base}`;
 
+              // DIAGNÓSTICO: Listar todos los canales ANTES de eliminar
+              try {
+                const channelsBefore =
+                  await Notifications.getNotificationChannelsAsync();
+                console.log(
+                  `📋 Canales ANTES de eliminar (${channelsBefore.length} total):`,
+                  channelsBefore.map((c) => ({
+                    id: c.id,
+                    sound: c.sound,
+                    importance: c.importance,
+                  }))
+                );
+              } catch (err) {
+                console.warn("⚠ No se pudieron listar canales:", err);
+              }
+
               // Eliminar el canal específico si existe para recrearlo
               // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
                 await Notifications.deleteNotificationChannelAsync(
                   customChannelId
                 );
-              } catch {
+                console.log(`🗑️ Canal eliminado: ${customChannelId}`);
+              } catch (deleteError) {
                 // Ignorar si el canal no existe (es normal la primera vez)
+                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
               // Esperar 400ms después de eliminar el canal
               await new Promise((resolve) => setTimeout(resolve, 400));
+
+              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente
+              try {
+                const channelsAfter =
+                  await Notifications.getNotificationChannelsAsync();
+                const canalExiste = channelsAfter.some(
+                  (c) => c.id === customChannelId
+                );
+                if (canalExiste) {
+                  console.error(
+                    `❌ ERROR CRÍTICO: El canal ${customChannelId} AÚN EXISTE después de eliminarlo. Esto causará que use el sonido por defecto.`
+                  );
+                } else {
+                  console.log(
+                    `✅ Canal ${customChannelId} eliminado correctamente`
+                  );
+                }
+              } catch (err) {
+                console.warn("⚠ No se pudo verificar eliminación:", err);
+              }
 
               // Crear un canal específico para este sonido
               // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
               // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
               // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
               const channelSoundName = soundFile.base; // Usar nombre SIN extensión
+
+              console.log(
+                `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
+              );
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -376,7 +418,7 @@ export async function sendPomodoroEndNotification(
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName}`
+                `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
               );
 
               // Verificar que el canal se creó correctamente
@@ -385,17 +427,29 @@ export async function sendPomodoroEndNotification(
                   customChannelId
                 );
                 console.log(
-                  `✓ Canal verificado - ID: ${channel?.id}, Sonido configurado: ${channel?.sound}, Importancia: ${channel?.importance}`
+                  `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
                 );
 
                 // Verificar que el sonido se configuró correctamente
-                if (!channel?.sound || channel.sound === "default") {
-                  console.warn(
-                    `⚠ ADVERTENCIA: El canal no tiene el sonido personalizado configurado. Sonido actual: ${channel?.sound}`
+                if (
+                  !channel?.sound ||
+                  channel.sound === "default" ||
+                  channel.sound === null
+                ) {
+                  console.error(
+                    `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
+                  );
+                } else if (channel.sound !== channelSoundName) {
+                  console.error(
+                    `❌ ERROR: El sonido del canal no coincide. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}"`
+                  );
+                } else {
+                  console.log(
+                    `✅ Sonido configurado correctamente: "${channel.sound}"`
                   );
                 }
               } catch (verifyError) {
-                console.warn("⚠ No se pudo verificar el canal:", verifyError);
+                console.error("❌ No se pudo verificar el canal:", verifyError);
               }
             } catch (error) {
               console.error(
@@ -437,6 +491,23 @@ export async function sendPomodoroEndNotification(
         )}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
       );
 
+      // DIAGNÓSTICO: Verificar que el channelId se está pasando correctamente
+      if (Platform.OS === "android") {
+        if (!channelId) {
+          console.error(
+            `❌ ERROR CRÍTICO: No se está pasando channelId. Android usará el canal "default" con sonido del sistema.`
+          );
+        } else if (channelId === "default") {
+          console.warn(
+            `⚠ ADVERTENCIA: Se está usando el canal "default". Si hay un sonido personalizado, debería usar: ${
+              customChannelId || "N/A"
+            }`
+          );
+        } else {
+          console.log(`✅ Usando canal personalizado: ${channelId}`);
+        }
+      }
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title,
@@ -448,6 +519,12 @@ export async function sendPomodoroEndNotification(
         trigger: trigger,
         ...(Platform.OS === "android" && channelId && { channelId }),
       });
+
+      console.log(
+        `📬 Notificación programada - ID: ${notificationId}, Canal usado: ${
+          channelId || "default"
+        }`
+      );
       console.log(
         "Notificación de fin de pomodoro programada. ID:",
         notificationId,
@@ -533,24 +610,66 @@ export async function sendBreakStartNotification(
             try {
               customChannelId = `workbreak_${soundFile.base}`;
 
+              // DIAGNÓSTICO: Listar todos los canales ANTES de eliminar
+              try {
+                const channelsBefore =
+                  await Notifications.getNotificationChannelsAsync();
+                console.log(
+                  `📋 Canales ANTES de eliminar (${channelsBefore.length} total):`,
+                  channelsBefore.map((c) => ({
+                    id: c.id,
+                    sound: c.sound,
+                    importance: c.importance,
+                  }))
+                );
+              } catch (err) {
+                console.warn("⚠ No se pudieron listar canales:", err);
+              }
+
               // Eliminar el canal específico si existe para recrearlo
               // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
                 await Notifications.deleteNotificationChannelAsync(
                   customChannelId
                 );
-              } catch {
+                console.log(`🗑️ Canal eliminado: ${customChannelId}`);
+              } catch (deleteError) {
                 // Ignorar si el canal no existe (es normal la primera vez)
+                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
               // Esperar 400ms después de eliminar el canal
               await new Promise((resolve) => setTimeout(resolve, 400));
+
+              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente
+              try {
+                const channelsAfter =
+                  await Notifications.getNotificationChannelsAsync();
+                const canalExiste = channelsAfter.some(
+                  (c) => c.id === customChannelId
+                );
+                if (canalExiste) {
+                  console.error(
+                    `❌ ERROR CRÍTICO: El canal ${customChannelId} AÚN EXISTE después de eliminarlo. Esto causará que use el sonido por defecto.`
+                  );
+                } else {
+                  console.log(
+                    `✅ Canal ${customChannelId} eliminado correctamente`
+                  );
+                }
+              } catch (err) {
+                console.warn("⚠ No se pudo verificar eliminación:", err);
+              }
 
               // Crear un canal específico para este sonido
               // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
               // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
               // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
               const channelSoundName = soundFile.base; // Usar nombre SIN extensión
+
+              console.log(
+                `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
+              );
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -567,7 +686,7 @@ export async function sendBreakStartNotification(
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName}`
+                `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
               );
 
               // Verificar que el canal se creó correctamente
@@ -576,17 +695,29 @@ export async function sendBreakStartNotification(
                   customChannelId
                 );
                 console.log(
-                  `✓ Canal verificado - ID: ${channel?.id}, Sonido configurado: ${channel?.sound}, Importancia: ${channel?.importance}`
+                  `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
                 );
 
                 // Verificar que el sonido se configuró correctamente
-                if (!channel?.sound || channel.sound === "default") {
-                  console.warn(
-                    `⚠ ADVERTENCIA: El canal no tiene el sonido personalizado configurado. Sonido actual: ${channel?.sound}`
+                if (
+                  !channel?.sound ||
+                  channel.sound === "default" ||
+                  channel.sound === null
+                ) {
+                  console.error(
+                    `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
+                  );
+                } else if (channel.sound !== channelSoundName) {
+                  console.error(
+                    `❌ ERROR: El sonido del canal no coincide. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}"`
+                  );
+                } else {
+                  console.log(
+                    `✅ Sonido configurado correctamente: "${channel.sound}"`
                   );
                 }
               } catch (verifyError) {
-                console.warn("⚠ No se pudo verificar el canal:", verifyError);
+                console.error("❌ No se pudo verificar el canal:", verifyError);
               }
             } catch (error) {
               console.error(
