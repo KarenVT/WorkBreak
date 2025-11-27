@@ -357,11 +357,10 @@ export async function sendPomodoroEndNotification(
               }
 
               // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
-              // Expo resuelve automáticamente el archivo desde app.json
-              // El nombre debe coincidir exactamente con el nombre del archivo en app.json (sin extensión)
-              // Ejemplo: "bell" para "./assets/sounds/bell.wav"
-              const channelSoundName = soundFile.base;
+              // IMPORTANTE: En Expo/Android, el sonido puede necesitar el nombre CON extensión
+              // Algunas versiones de Expo/Android requieren el nombre completo del archivo
+              // Probamos primero con extensión, si no funciona, probar sin extensión
+              const channelSoundName = soundFile.withExt; // Usar nombre CON extensión
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -369,7 +368,7 @@ export async function sendPomodoroEndNotification(
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                sound: channelSoundName, // Nombre CON extensión (ej: "bell.wav")
                 enableVibrate: true,
                 showBadge: true,
               });
@@ -378,7 +377,7 @@ export async function sendPomodoroEndNotification(
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName} (archivo: ${soundFile.withExt})`
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName}`
               );
 
               // Verificar que el canal se creó correctamente
@@ -387,8 +386,15 @@ export async function sendPomodoroEndNotification(
                   customChannelId
                 );
                 console.log(
-                  `✓ Canal verificado - ID: ${channel?.id}, Sonido: ${channel?.sound}`
+                  `✓ Canal verificado - ID: ${channel?.id}, Sonido configurado: ${channel?.sound}, Importancia: ${channel?.importance}`
                 );
+
+                // Verificar que el sonido se configuró correctamente
+                if (!channel?.sound || channel.sound === "default") {
+                  console.warn(
+                    `⚠ ADVERTENCIA: El canal no tiene el sonido personalizado configurado. Sonido actual: ${channel?.sound}`
+                  );
+                }
               } catch (verifyError) {
                 console.warn("⚠ No se pudo verificar el canal:", verifyError);
               }
@@ -543,11 +549,10 @@ export async function sendBreakStartNotification(
               }
 
               // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
-              // Expo resuelve automáticamente el archivo desde app.json
-              // El nombre debe coincidir exactamente con el nombre del archivo en app.json (sin extensión)
-              // Ejemplo: "bell" para "./assets/sounds/bell.wav"
-              const channelSoundName = soundFile.base;
+              // IMPORTANTE: En Expo/Android, el sonido puede necesitar el nombre CON extensión
+              // Algunas versiones de Expo/Android requieren el nombre completo del archivo
+              // Probamos primero con extensión, si no funciona, probar sin extensión
+              const channelSoundName = soundFile.withExt; // Usar nombre CON extensión
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -555,7 +560,7 @@ export async function sendBreakStartNotification(
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                sound: channelSoundName, // Nombre CON extensión (ej: "bell.wav")
                 enableVibrate: true,
                 showBadge: true,
               });
@@ -564,7 +569,7 @@ export async function sendBreakStartNotification(
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName} (archivo: ${soundFile.withExt})`
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName}`
               );
 
               // Verificar que el canal se creó correctamente
@@ -573,8 +578,15 @@ export async function sendBreakStartNotification(
                   customChannelId
                 );
                 console.log(
-                  `✓ Canal verificado - ID: ${channel?.id}, Sonido: ${channel?.sound}`
+                  `✓ Canal verificado - ID: ${channel?.id}, Sonido configurado: ${channel?.sound}, Importancia: ${channel?.importance}`
                 );
+
+                // Verificar que el sonido se configuró correctamente
+                if (!channel?.sound || channel.sound === "default") {
+                  console.warn(
+                    `⚠ ADVERTENCIA: El canal no tiene el sonido personalizado configurado. Sonido actual: ${channel?.sound}`
+                  );
+                }
               } catch (verifyError) {
                 console.warn("⚠ No se pudo verificar el canal:", verifyError);
               }
