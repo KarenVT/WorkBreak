@@ -4,9 +4,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePreferences } from "@/hooks/use-preferences";
-import { AudioPlayer } from "expo-audio";
+import { useAudioPlayer } from "expo-audio";
 import { router } from "expo-router";
-import React, { useRef, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -77,25 +77,55 @@ export default function SoundSelectorScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const { preferences, isLoading, updatePreference } = usePreferences();
-  const playerRef = useRef<AudioPlayer | null>(null);
+  const [currentSoundSource, setCurrentSoundSource] = useState<any>(undefined);
+  const player = useAudioPlayer(currentSoundSource);
 
   const handleBackPress = () => {
     router.back();
   };
 
-  // Limpiar el player cuando el componente se desmonte
+  // Reproducir cuando cambie la fuente del sonido
   useEffect(() => {
-    return () => {
-      if (playerRef.current) {
-        try {
-          playerRef.current.remove();
-        } catch (error) {
-          // Ignorar errores al limpiar
-        }
-        playerRef.current = null;
+    if (currentSoundSource && player) {
+      try {
+        // Esperar un momento para que el player se inicialice
+        const timer = setTimeout(() => {
+          if (player) {
+            player.volume = 1.0;
+            player.play();
+          }
+        }, 50);
+        return () => clearTimeout(timer);
+      } catch (error) {
+        console.error("Error iniciando reproducción:", error);
+      }
+    }
+  }, [currentSoundSource, player]);
+
+  // Limpiar cuando termine de reproducirse
+  useEffect(() => {
+    if (!player || !currentSoundSource) return;
+
+    const handleStatusUpdate = (status: any) => {
+      if (status.didJustFinish) {
+        // Limpiar la fuente cuando termine
+        setCurrentSoundSource(undefined);
       }
     };
-  }, []);
+
+    const subscription = player.addListener(
+      "playbackStatusUpdate",
+      handleStatusUpdate
+    );
+
+    return () => {
+      try {
+        subscription?.remove();
+      } catch (error) {
+        // Ignorar errores al remover listener
+      }
+    };
+  }, [player, currentSoundSource]);
 
   const playSound = async (soundId: string) => {
     try {
@@ -110,47 +140,24 @@ export default function SoundSelectorScreen() {
         return;
       }
 
-      // Detener y limpiar cualquier sonido que esté reproduciéndose
-      if (playerRef.current) {
+      // Detener cualquier sonido que esté reproduciéndose
+      if (player?.playing) {
         try {
-          playerRef.current.remove();
+          player.pause();
         } catch (error) {
-          // Ignorar errores al limpiar
-        }
-        playerRef.current = null;
-      }
-
-      // Crear un nuevo player para el sonido
-      const player = new AudioPlayer(soundFile);
-      player.volume = 1.0;
-      player.play();
-      
-      playerRef.current = player;
-
-      // Limpiar cuando termine de reproducirse
-      player.addListener("playbackStatusUpdate", (status) => {
-        if (status.didJustFinish) {
-          try {
-            player.remove();
-            if (playerRef.current === player) {
-              playerRef.current = null;
-            }
-          } catch (error) {
-            // Ignorar errores al limpiar
-          }
-        }
-      });
-    } catch (error) {
-      console.error("Error reproduciendo sonido:", error);
-      // Asegurarse de limpiar el player en caso de error
-      if (playerRef.current) {
-        try {
-          playerRef.current.remove();
-        } catch {
           // Ignorar errores
         }
-        playerRef.current = null;
       }
+
+      // Primero limpiar la fuente anterior para forzar la recreación del player
+      setCurrentSoundSource(undefined);
+
+      // Luego establecer la nueva fuente (esto activará el useEffect que reproduce)
+      setTimeout(() => {
+        setCurrentSoundSource(soundFile);
+      }, 10);
+    } catch (error) {
+      console.error("Error reproduciendo sonido:", error);
     }
   };
 

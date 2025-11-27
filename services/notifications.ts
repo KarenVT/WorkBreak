@@ -341,35 +341,57 @@ export async function sendPomodoroEndNotification(
           if (Platform.OS === "android") {
             try {
               customChannelId = `workbreak_${soundFile.base}`;
-              
+
               // Eliminar el canal específico si existe para recrearlo
+              // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
-                await Notifications.deleteNotificationChannelAsync(customChannelId);
-                await new Promise((resolve) => setTimeout(resolve, 100));
-              } catch {
-                // Ignorar si el canal no existe
+                await Notifications.deleteNotificationChannelAsync(
+                  customChannelId
+                );
+                // Delay más largo para asegurar que el canal se elimine completamente
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                console.log(`✓ Canal eliminado: ${customChannelId}`);
+              } catch (deleteError) {
+                // Ignorar si el canal no existe (es normal la primera vez)
+                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
               // Crear un canal específico para este sonido
               // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
               // Expo resuelve automáticamente el archivo desde app.json
+              // El nombre debe coincidir exactamente con el nombre del archivo en app.json (sin extensión)
+              // Ejemplo: "bell" para "./assets/sounds/bell.wav"
+              const channelSoundName = soundFile.base;
+
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
                 description: `Notificaciones con sonido ${soundFile.base}`,
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: soundFile.base, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                sound: channelSoundName, // Nombre sin extensión (Expo lo resuelve desde app.json)
                 enableVibrate: true,
                 showBadge: true,
               });
 
-              // Delay más largo para asegurar que el canal se cree completamente
-              await new Promise((resolve) => setTimeout(resolve, 500));
+              // Delay más largo para asegurar que el canal se cree completamente antes de usarlo
+              await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${soundFile.base} (archivo: ${soundFile.withExt})`
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName} (archivo: ${soundFile.withExt})`
               );
+
+              // Verificar que el canal se creó correctamente
+              try {
+                const channel = await Notifications.getNotificationChannelAsync(
+                  customChannelId
+                );
+                console.log(
+                  `✓ Canal verificado - ID: ${channel?.id}, Sonido: ${channel?.sound}`
+                );
+              } catch (verifyError) {
+                console.warn("⚠ No se pudo verificar el canal:", verifyError);
+              }
             } catch (error) {
               console.error(
                 "✗ Error creando canal con sonido personalizado:",
@@ -393,18 +415,21 @@ export async function sendPomodoroEndNotification(
 
       // En Android, usar el canal específico si se creó uno personalizado
       // Si no hay canal personalizado, usar "default"
-      const channelId = Platform.OS === "android" 
-        ? (customChannelId || "default")
-        : undefined;
+      const channelId =
+        Platform.OS === "android" ? customChannelId || "default" : undefined;
 
-      // En Android, cuando hay un canal personalizado, usar "default" para que use el sonido del canal
-      // El sonido ya está configurado en el canal, así que la notificación debe usar "default"
-      const notificationSound = Platform.OS === "android" && customChannelId
-        ? "default" // Usar "default" para que use el sonido del canal personalizado
-        : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      // En Android, cuando hay un canal personalizado, usar `true` para que use el sonido del canal
+      // El sonido ya está configurado en el canal, así que la notificación debe usar `true`
+      // Para iOS, usar el nombre del sonido directamente
+      const notificationSound =
+        Platform.OS === "android" && customChannelId
+          ? true // Usar `true` para que Android use el sonido configurado en el canal
+          : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
 
       console.log(
-        `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
+        `📢 Programando notificación - Sonido: ${JSON.stringify(
+          notificationSound
+        )}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
       );
 
       const notificationId = await Notifications.scheduleNotificationAsync({
@@ -502,35 +527,57 @@ export async function sendBreakStartNotification(
           if (Platform.OS === "android") {
             try {
               customChannelId = `workbreak_${soundFile.base}`;
-              
+
               // Eliminar el canal específico si existe para recrearlo
+              // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
-                await Notifications.deleteNotificationChannelAsync(customChannelId);
-                await new Promise((resolve) => setTimeout(resolve, 100));
-              } catch {
-                // Ignorar si el canal no existe
+                await Notifications.deleteNotificationChannelAsync(
+                  customChannelId
+                );
+                // Delay más largo para asegurar que el canal se elimine completamente
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                console.log(`✓ Canal eliminado: ${customChannelId}`);
+              } catch (deleteError) {
+                // Ignorar si el canal no existe (es normal la primera vez)
+                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
               // Crear un canal específico para este sonido
               // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
               // Expo resuelve automáticamente el archivo desde app.json
+              // El nombre debe coincidir exactamente con el nombre del archivo en app.json (sin extensión)
+              // Ejemplo: "bell" para "./assets/sounds/bell.wav"
+              const channelSoundName = soundFile.base;
+
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
                 description: `Notificaciones con sonido ${soundFile.base}`,
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: soundFile.base, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                sound: channelSoundName, // Nombre sin extensión (Expo lo resuelve desde app.json)
                 enableVibrate: true,
                 showBadge: true,
               });
 
-              // Delay más largo para asegurar que el canal se cree completamente
-              await new Promise((resolve) => setTimeout(resolve, 500));
+              // Delay más largo para asegurar que el canal se cree completamente antes de usarlo
+              await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
-                `✓ Canal Android creado: ${customChannelId} con sonido: ${soundFile.base} (archivo: ${soundFile.withExt})`
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${channelSoundName} (archivo: ${soundFile.withExt})`
               );
+
+              // Verificar que el canal se creó correctamente
+              try {
+                const channel = await Notifications.getNotificationChannelAsync(
+                  customChannelId
+                );
+                console.log(
+                  `✓ Canal verificado - ID: ${channel?.id}, Sonido: ${channel?.sound}`
+                );
+              } catch (verifyError) {
+                console.warn("⚠ No se pudo verificar el canal:", verifyError);
+              }
             } catch (error) {
               console.error(
                 "✗ Error creando canal con sonido personalizado:",
@@ -539,7 +586,7 @@ export async function sendBreakStartNotification(
               customChannelId = null;
             }
           }
-          
+
           // Para la notificación, usar el nombre base sin extensión
           sound = soundFile.base;
         }
@@ -557,18 +604,21 @@ export async function sendBreakStartNotification(
 
       // En Android, usar el canal específico si se creó uno personalizado
       // Si no hay canal personalizado, usar "default"
-      const channelId = Platform.OS === "android" 
-        ? (customChannelId || "default")
-        : undefined;
+      const channelId =
+        Platform.OS === "android" ? customChannelId || "default" : undefined;
 
-      // En Android, cuando hay un canal personalizado, usar "default" para que use el sonido del canal
-      // El sonido ya está configurado en el canal, así que la notificación debe usar "default"
-      const notificationSound = Platform.OS === "android" && customChannelId
-        ? "default" // Usar "default" para que use el sonido del canal personalizado
-        : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      // En Android, cuando hay un canal personalizado, usar `true` para que use el sonido del canal
+      // El sonido ya está configurado en el canal, así que la notificación debe usar `true`
+      // Para iOS, usar el nombre del sonido directamente
+      const notificationSound =
+        Platform.OS === "android" && customChannelId
+          ? true // Usar `true` para que Android use el sonido configurado en el canal
+          : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
 
       console.log(
-        `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
+        `📢 Programando notificación - Sonido: ${JSON.stringify(
+          notificationSound
+        )}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
       );
 
       const notificationId = await Notifications.scheduleNotificationAsync({
