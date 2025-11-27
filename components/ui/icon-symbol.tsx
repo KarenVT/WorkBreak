@@ -30,7 +30,8 @@ type IconSymbolName =
   | "figure.walk"
   | "speaker.wave.2.fill"
   | "xmark"
-  | "backward.fill";
+  | "backward.fill"
+  | "checkmark.circle";
 
 type IconMapping = Record<
   IconSymbolName,
@@ -69,6 +70,7 @@ const MAPPING: IconMapping = {
   "speaker.wave.2.fill": "volume-up",
   xmark: "close",
   "backward.fill": "skip-previous",
+  "checkmark.circle": "check-circle",
 };
 
 /**

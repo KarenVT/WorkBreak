@@ -4,10 +4,15 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+
+// Mantener el splash screen visible mientras cargamos recursos
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -15,6 +20,24 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    // Ocultar el splash screen cuando la app esté lista
+    const hideSplash = async () => {
+      try {
+        await SplashScreen.hideAsync();
+      } catch (error) {
+        console.warn("Error ocultando splash screen:", error);
+      }
+    };
+
+    // Pequeño delay para asegurar que todo esté cargado
+    const timer = setTimeout(() => {
+      hideSplash();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // NO solicitamos permisos aquí para evitar cargar expo-notifications al inicio
   // Los permisos se solicitarán automáticamente la primera vez que se intente enviar una notificación
