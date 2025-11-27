@@ -300,14 +300,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderRadius: 40,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
     elevation: 5,
+    boxShadow: "0px 2px 3.84px rgba(0, 0, 0, 0.1)",
   },
   metricLabel: {
     fontSize: 16,
@@ -380,14 +374,8 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
     elevation: 5,
+    boxShadow: "0px 2px 3.84px rgba(0, 0, 0, 0.25)",
   },
   startButtonText: {
     color: "#FFFFFF",

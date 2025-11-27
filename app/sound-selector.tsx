@@ -4,9 +4,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePreferences } from "@/hooks/use-preferences";
-import { Audio } from "expo-av";
+import { useAudioPlayer } from "expo-audio";
 import { router } from "expo-router";
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -77,7 +77,8 @@ export default function SoundSelectorScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const { preferences, isLoading, updatePreference } = usePreferences();
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const [currentSoundSource, setCurrentSoundSource] = useState<any>(null);
+  const player = useAudioPlayer(currentSoundSource);
 
   const handleBackPress = () => {
     router.back();
@@ -85,12 +86,6 @@ export default function SoundSelectorScreen() {
 
   const playSound = async (soundId: string) => {
     try {
-      // Detener cualquier sonido que esté reproduciéndose
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
       // Si es "default", no reproducir nada (usa sonido del sistema)
       if (soundId === "default") {
         return;
@@ -102,27 +97,19 @@ export default function SoundSelectorScreen() {
         return;
       }
 
-      // Configurar modo de audio
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
+      // Detener cualquier sonido que esté reproduciéndose
+      if (player.playing) {
+        player.pause();
+      }
 
-      // Cargar y reproducir el sonido
-      const { sound } = await Audio.Sound.createAsync(soundFile, {
-        shouldPlay: true,
-        volume: 1.0,
-      });
-
-      soundRef.current = sound;
-
-      // Limpiar cuando termine de reproducirse
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-          soundRef.current = null;
-        }
-      });
+      // Cargar y reproducir el nuevo sonido
+      setCurrentSoundSource(soundFile);
+      
+      // Esperar un momento para que el player se actualice
+      setTimeout(() => {
+        player.play();
+        player.volume = 1.0;
+      }, 100);
     } catch (error) {
       console.error("Error reproduciendo sonido:", error);
     }
