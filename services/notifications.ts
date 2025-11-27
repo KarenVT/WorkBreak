@@ -348,19 +348,18 @@ export async function sendPomodoroEndNotification(
                 await Notifications.deleteNotificationChannelAsync(
                   customChannelId
                 );
-                // Delay más largo para asegurar que el canal se elimine completamente
-                await new Promise((resolve) => setTimeout(resolve, 300));
-                console.log(`✓ Canal eliminado: ${customChannelId}`);
-              } catch (deleteError) {
+              } catch {
                 // Ignorar si el canal no existe (es normal la primera vez)
-                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
+              // Esperar 400ms después de eliminar el canal
+              await new Promise((resolve) => setTimeout(resolve, 400));
+
               // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido puede necesitar el nombre CON extensión
-              // Algunas versiones de Expo/Android requieren el nombre completo del archivo
-              // Probamos primero con extensión, si no funciona, probar sin extensión
-              const channelSoundName = soundFile.withExt; // Usar nombre CON extensión
+              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
+              // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
+              // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
+              const channelSoundName = soundFile.base; // Usar nombre SIN extensión
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -368,12 +367,12 @@ export async function sendPomodoroEndNotification(
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre CON extensión (ej: "bell.wav")
+                sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
                 enableVibrate: true,
                 showBadge: true,
               });
 
-              // Delay más largo para asegurar que el canal se cree completamente antes de usarlo
+              // Esperar 800ms después de crear el canal antes de usarlo
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
@@ -540,19 +539,18 @@ export async function sendBreakStartNotification(
                 await Notifications.deleteNotificationChannelAsync(
                   customChannelId
                 );
-                // Delay más largo para asegurar que el canal se elimine completamente
-                await new Promise((resolve) => setTimeout(resolve, 300));
-                console.log(`✓ Canal eliminado: ${customChannelId}`);
-              } catch (deleteError) {
+              } catch {
                 // Ignorar si el canal no existe (es normal la primera vez)
-                console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
+              // Esperar 400ms después de eliminar el canal
+              await new Promise((resolve) => setTimeout(resolve, 400));
+
               // Crear un canal específico para este sonido
-              // IMPORTANTE: En Expo/Android, el sonido puede necesitar el nombre CON extensión
-              // Algunas versiones de Expo/Android requieren el nombre completo del archivo
-              // Probamos primero con extensión, si no funciona, probar sin extensión
-              const channelSoundName = soundFile.withExt; // Usar nombre CON extensión
+              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre SIN extensión
+              // Expo copia los archivos a res/raw/ y usa el nombre base sin extensión
+              // Ejemplo: "bell" para "./assets/sounds/bell.wav" → res/raw/bell.wav
+              const channelSoundName = soundFile.base; // Usar nombre SIN extensión
 
               await Notifications.setNotificationChannelAsync(customChannelId, {
                 name: `Notificaciones WorkBreak`,
@@ -560,12 +558,12 @@ export async function sendBreakStartNotification(
                 importance: Notifications.AndroidImportance.HIGH,
                 vibrationPattern: [0, 250, 250, 250],
                 lightColor: "#4CAF50",
-                sound: channelSoundName, // Nombre CON extensión (ej: "bell.wav")
+                sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
                 enableVibrate: true,
                 showBadge: true,
               });
 
-              // Delay más largo para asegurar que el canal se cree completamente antes de usarlo
+              // Esperar 800ms después de crear el canal antes de usarlo
               await new Promise((resolve) => setTimeout(resolve, 800));
 
               console.log(
