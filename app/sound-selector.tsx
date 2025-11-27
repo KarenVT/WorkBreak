@@ -4,9 +4,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePreferences } from "@/hooks/use-preferences";
-import { useAudioPlayer } from "expo-audio";
+import { AudioPlayer } from "expo-audio";
 import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -77,12 +77,25 @@ export default function SoundSelectorScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
   const { preferences, isLoading, updatePreference } = usePreferences();
-  const [currentSoundSource, setCurrentSoundSource] = useState<any>(null);
-  const player = useAudioPlayer(currentSoundSource);
+  const playerRef = useRef<AudioPlayer | null>(null);
 
   const handleBackPress = () => {
     router.back();
   };
+
+  // Limpiar el player cuando el componente se desmonte
+  useEffect(() => {
+    return () => {
+      if (playerRef.current) {
+        try {
+          playerRef.current.remove();
+        } catch (error) {
+          // Ignorar errores al limpiar
+        }
+        playerRef.current = null;
+      }
+    };
+  }, []);
 
   const playSound = async (soundId: string) => {
     try {
@@ -97,32 +110,65 @@ export default function SoundSelectorScreen() {
         return;
       }
 
-      // Detener cualquier sonido que esté reproduciéndose
-      if (player.playing) {
-        player.pause();
+      // Detener y limpiar cualquier sonido que esté reproduciéndose
+      if (playerRef.current) {
+        try {
+          playerRef.current.remove();
+        } catch (error) {
+          // Ignorar errores al limpiar
+        }
+        playerRef.current = null;
       }
 
-      // Cargar y reproducir el nuevo sonido
-      setCurrentSoundSource(soundFile);
+      // Crear un nuevo player para el sonido
+      const player = new AudioPlayer(soundFile);
+      player.volume = 1.0;
+      player.play();
       
-      // Esperar un momento para que el player se actualice
-      setTimeout(() => {
-        player.play();
-        player.volume = 1.0;
-      }, 100);
+      playerRef.current = player;
+
+      // Limpiar cuando termine de reproducirse
+      player.addListener("playbackStatusUpdate", (status) => {
+        if (status.didJustFinish) {
+          try {
+            player.remove();
+            if (playerRef.current === player) {
+              playerRef.current = null;
+            }
+          } catch (error) {
+            // Ignorar errores al limpiar
+          }
+        }
+      });
     } catch (error) {
       console.error("Error reproduciendo sonido:", error);
+      // Asegurarse de limpiar el player en caso de error
+      if (playerRef.current) {
+        try {
+          playerRef.current.remove();
+        } catch {
+          // Ignorar errores
+        }
+        playerRef.current = null;
+      }
     }
   };
 
   const handleSoundSelect = async (soundId: string) => {
-    // Reproducir el sonido antes de seleccionarlo
-    await playSound(soundId);
-    await updatePreference("alertSound", soundId);
-    // No cerrar inmediatamente para que el usuario pueda escuchar el sonido
-    setTimeout(() => {
+    try {
+      // Reproducir el sonido antes de seleccionarlo
+      await playSound(soundId);
+      await updatePreference("alertSound", soundId);
+      // No cerrar inmediatamente para que el usuario pueda escuchar el sonido
+      setTimeout(() => {
+        router.back();
+      }, 500);
+    } catch (error) {
+      console.error("Error seleccionando sonido:", error);
+      // Aún así, guardar la preferencia aunque haya error al reproducir
+      await updatePreference("alertSound", soundId);
       router.back();
-    }, 500);
+    }
   };
 
   if (isLoading) {

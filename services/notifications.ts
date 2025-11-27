@@ -397,12 +397,11 @@ export async function sendPomodoroEndNotification(
         ? (customChannelId || "default")
         : undefined;
 
-      // En Android, cuando hay un canal personalizado, intentar usar el nombre del sonido directamente
-      // Si el canal tiene el sonido configurado, también podemos usar "default" para que use el del canal
-      // PROBAR: Usar el nombre del sonido directamente en la notificación también
+      // En Android, cuando hay un canal personalizado, usar "default" para que use el sonido del canal
+      // El sonido ya está configurado en el canal, así que la notificación debe usar "default"
       const notificationSound = Platform.OS === "android" && customChannelId
-        ? sound // Usar el nombre del sonido directamente (el canal también lo tiene configurado)
-        : sound; // Usar el sonido directamente
+        ? "default" // Usar "default" para que use el sonido del canal personalizado
+        : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
 
       console.log(
         `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
@@ -562,12 +561,11 @@ export async function sendBreakStartNotification(
         ? (customChannelId || "default")
         : undefined;
 
-      // En Android, cuando hay un canal personalizado, intentar usar el nombre del sonido directamente
-      // Si el canal tiene el sonido configurado, también podemos usar "default" para que use el del canal
-      // PROBAR: Usar el nombre del sonido directamente en la notificación también
+      // En Android, cuando hay un canal personalizado, usar "default" para que use el sonido del canal
+      // El sonido ya está configurado en el canal, así que la notificación debe usar "default"
       const notificationSound = Platform.OS === "android" && customChannelId
-        ? sound // Usar el nombre del sonido directamente (el canal también lo tiene configurado)
-        : sound; // Usar el sonido directamente
+        ? "default" // Usar "default" para que use el sonido del canal personalizado
+        : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
 
       console.log(
         `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
