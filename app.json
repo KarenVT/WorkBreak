@@ -4,7 +4,7 @@
     "slug": "WorkBreak",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/Designer.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "workbreak",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +16,13 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/Designer.png",
         "backgroundImage": "./assets/images/Designer.png",
-        "monochromeImage": "./assets/images/Designer-white.png"
+        "monochromeImage": "./assets/images/Designer.png",
+        "dark": {
+          "backgroundColor": "#E6F4FE",
+          "foregroundImage": "./assets/images/Designer.png",
+          "backgroundImage": "./assets/images/Designer.png",
+          "monochromeImage": "./assets/images/Designer.png"
+        }
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -24,7 +30,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/Designer.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -32,12 +38,12 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/Designer.png",
-          "imageWidth": 250,
+          "imageWidth": 150,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#E6F4FE",
           "dark": {
-            "image": "./assets/images/Designer-white.png",
-            "backgroundColor": "#000000"
+            "image": "./assets/images/Designer.png",
+            "backgroundColor": "#E6F4FE"
           }
         }
       ],
@@ -46,7 +52,13 @@
         {
           "icon": "./assets/images/Designer.png",
           "color": "#4CAF50",
-          "sounds": []
+          "sounds": [
+            "./assets/sounds/bell.wav",
+            "./assets/sounds/chime.mp3",
+            "./assets/sounds/alert.mp3",
+            "./assets/sounds/notification.wav",
+            "./assets/sounds/ringtone.wav"
+          ]
         }
       ]
     ],

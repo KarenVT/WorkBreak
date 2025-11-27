@@ -45,7 +45,7 @@ export default function StatisticScreen() {
         statisticsDB.getCurrentStreak(),
         statisticsDB.getWeeklyActivity(),
       ]);
-
+      
       setBreaksToday(breaks);
       setFocusTime(focus);
       setStreakDays(streak);

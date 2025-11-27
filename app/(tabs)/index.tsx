@@ -21,6 +21,7 @@ import {
   getRandomExercises,
 } from "@/services/exercises";
 import {
+  cancelAllNotifications,
   sendBreakStartNotification,
   sendPomodoroEndNotification,
 } from "@/services/notifications";
@@ -107,36 +108,94 @@ export default function HomeScreen() {
     },
   });
 
-  // Detectar cuando se entra en pausa corta o larga
+  // Programar notificaciones 5 segundos antes de que termine/comience la sesión
+  useEffect(() => {
+    // Solo programar notificaciones si el timer está corriendo y quedan exactamente 5 segundos
+    // Las notificaciones se enviarán inmediatamente pero con un pequeño delay para evitar conflictos
+    if (state === "running" && timeRemaining === 5) {
+      // Determinar qué tipo de notificaciones programar según el tipo de sesión actual
+      if (sessionType === "work") {
+        // Cuando está en trabajo y quedan 5 segundos, enviar notificación de fin de pomodoro
+        // con un pequeño delay para evitar conflictos de sonido
+        if (
+          preferences.notificationsEnabled &&
+          preferences.pomodoroEndNotification
+        ) {
+          // Enviar inmediatamente (0 segundos) pero programado para evitar conflictos
+          sendPomodoroEndNotification(
+            {
+              notificationsEnabled: preferences.notificationsEnabled,
+              pomodoroEndNotification: preferences.pomodoroEndNotification,
+              breakStartNotification: preferences.breakStartNotification,
+              alertSound: preferences.alertSound,
+            },
+            0 // Enviar inmediatamente
+          ).catch((error) => {
+            console.error(
+              "Error enviando notificación de fin de pomodoro:",
+              error
+            );
+          });
+        }
+
+        // También enviar notificación de inicio de descanso con un delay de 2 segundos
+        // para evitar que se choquen con la notificación anterior
+        const currentPomodoros = cyclesCompleted * preferences.longBreakAfter;
+        const willBeLongBreak =
+          (currentPomodoros + 1) % preferences.longBreakAfter === 0;
+        const breakType = willBeLongBreak ? "longBreak" : "shortBreak";
+
+        if (
+          preferences.notificationsEnabled &&
+          preferences.breakStartNotification
+        ) {
+          // Programar para 2 segundos después para evitar conflictos de sonido
+          sendBreakStartNotification(
+            {
+              notificationsEnabled: preferences.notificationsEnabled,
+              pomodoroEndNotification: preferences.pomodoroEndNotification,
+              breakStartNotification: preferences.breakStartNotification,
+              alertSound: preferences.alertSound,
+            },
+            breakType,
+            2 // Enviar 2 segundos después para evitar conflictos
+          ).catch((error) => {
+            console.error(
+              "Error programando notificación de inicio de descanso:",
+              error
+            );
+          });
+        }
+      }
+    }
+  }, [
+    timeRemaining,
+    state,
+    sessionType,
+    preferences.notificationsEnabled,
+    preferences.pomodoroEndNotification,
+    preferences.breakStartNotification,
+    preferences.alertSound,
+    cyclesCompleted,
+    preferences.longBreakAfter,
+  ]);
+
+  // Cancelar notificaciones programadas cuando se pausa o resetea el timer
+  useEffect(() => {
+    if (state === "paused" || (state === "idle" && timeRemaining > 0)) {
+      cancelAllNotifications().catch((error) => {
+        console.error("Error cancelando notificaciones:", error);
+      });
+    }
+  }, [state, timeRemaining]);
+
+  // Detectar cuando se entra en pausa corta o larga (para lógica adicional)
   useEffect(() => {
     const isBreak = sessionType === "shortBreak" || sessionType === "longBreak";
     const wasWork = previousSessionType === "work";
     const justStartedBreak = isBreak && wasWork && !activeBreakVisible;
 
     if (justStartedBreak) {
-      // Enviar notificaciones cuando termina el pomodoro y cuando inicia el descanso
-      sendPomodoroEndNotification({
-        notificationsEnabled: preferences.notificationsEnabled,
-        pomodoroEndNotification: preferences.pomodoroEndNotification,
-        breakStartNotification: preferences.breakStartNotification,
-      }).catch((error) => {
-        console.error("Error enviando notificación de fin de pomodoro:", error);
-      });
-
-      sendBreakStartNotification(
-        {
-          notificationsEnabled: preferences.notificationsEnabled,
-          pomodoroEndNotification: preferences.pomodoroEndNotification,
-          breakStartNotification: preferences.breakStartNotification,
-        },
-        sessionType === "shortBreak" ? "shortBreak" : "longBreak"
-      ).catch((error) => {
-        console.error(
-          "Error enviando notificación de inicio de descanso:",
-          error
-        );
-      });
-
       // Obtener tipos de ejercicios habilitados
       const enabledTypes = exercisePreferences
         .filter((ex) => ex.enabled)

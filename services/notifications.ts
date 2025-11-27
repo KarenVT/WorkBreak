@@ -64,6 +64,7 @@ export interface NotificationPreferences {
   notificationsEnabled: boolean;
   pomodoroEndNotification: boolean;
   breakStartNotification: boolean;
+  alertSound?: string;
 }
 
 // ==================== IMPLEMENTACIÓN WEB (Web Notifications API) ====================
@@ -235,6 +236,7 @@ async function requestMobileNotificationPermissions(): Promise<boolean> {
     // En Android, también necesitamos configurar el canal de notificaciones
     if (Platform.OS === "android") {
       try {
+        // El sonido se configurará dinámicamente en cada notificación
         await Notifications.setNotificationChannelAsync("default", {
           name: "Notificaciones de WorkBreak",
           importance: Notifications.AndroidImportance.HIGH,
@@ -272,9 +274,12 @@ async function requestNotificationPermissions(): Promise<boolean> {
 
 /**
  * Envía una notificación cuando termina el pomodoro (web o móvil)
+ * @param preferences - Preferencias de notificación
+ * @param secondsFromNow - Segundos desde ahora para programar la notificación (por defecto: inmediatamente)
  */
 export async function sendPomodoroEndNotification(
-  preferences: NotificationPreferences
+  preferences: NotificationPreferences,
+  secondsFromNow: number = 0
 ): Promise<void> {
   if (
     !preferences.notificationsEnabled ||
@@ -307,19 +312,120 @@ export async function sendPomodoroEndNotification(
     } else {
       // Usar notificaciones móviles
       const Notifications = await getNotificationsModule();
+      const soundName = preferences.alertSound || "default";
+
+      // Determinar el sonido a usar
+      let sound: string | boolean = true; // Por defecto usa el sonido del sistema
+
+      // Variable para almacenar el channelId si se crea un canal personalizado
+      let customChannelId: string | null = null;
+
+      // Mapear sonidos personalizados
+      // En Android, el canal puede necesitar el nombre con extensión
+      const soundFileMap: Record<string, { base: string; withExt: string }> = {
+        bell: { base: "bell", withExt: "bell.wav" },
+        chime: { base: "chime", withExt: "chime.mp3" },
+        alert: { base: "alert", withExt: "alert.mp3" },
+        notification: { base: "notification", withExt: "notification.wav" },
+        ringtone: { base: "ringtone", withExt: "ringtone.wav" },
+      };
+
+      if (soundName !== "default") {
+        const soundFile = soundFileMap[soundName];
+        if (soundFile) {
+          // En Expo, usar solo el nombre base sin extensión para la notificación
+          sound = soundFile.base;
+
+          // En Android, crear un canal específico para cada sonido
+          // El sonido debe venir del canal, no de la notificación individual
+          if (Platform.OS === "android") {
+            try {
+              customChannelId = `workbreak_${soundFile.base}`;
+              
+              // Eliminar el canal específico si existe para recrearlo
+              try {
+                await Notifications.deleteNotificationChannelAsync(customChannelId);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              } catch {
+                // Ignorar si el canal no existe
+              }
+
+              // Crear un canal específico para este sonido
+              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
+              // Expo resuelve automáticamente el archivo desde app.json
+              await Notifications.setNotificationChannelAsync(customChannelId, {
+                name: `Notificaciones WorkBreak`,
+                description: `Notificaciones con sonido ${soundFile.base}`,
+                importance: Notifications.AndroidImportance.HIGH,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: "#4CAF50",
+                sound: soundFile.base, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                enableVibrate: true,
+                showBadge: true,
+              });
+
+              // Delay más largo para asegurar que el canal se cree completamente
+              await new Promise((resolve) => setTimeout(resolve, 500));
+
+              console.log(
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${soundFile.base} (archivo: ${soundFile.withExt})`
+              );
+            } catch (error) {
+              console.error(
+                "✗ Error creando canal con sonido personalizado:",
+                error
+              );
+              customChannelId = null;
+            }
+          }
+        }
+      }
+
+      // Programar la notificación para que se envíe en el tiempo especificado
+      let trigger: any = null;
+      if (secondsFromNow > 0) {
+        trigger = {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: secondsFromNow,
+          repeats: false,
+        };
+      }
+
+      // En Android, usar el canal específico si se creó uno personalizado
+      // Si no hay canal personalizado, usar "default"
+      const channelId = Platform.OS === "android" 
+        ? (customChannelId || "default")
+        : undefined;
+
+      // En Android, cuando hay un canal personalizado, intentar usar el nombre del sonido directamente
+      // Si el canal tiene el sonido configurado, también podemos usar "default" para que use el del canal
+      // PROBAR: Usar el nombre del sonido directamente en la notificación también
+      const notificationSound = Platform.OS === "android" && customChannelId
+        ? sound // Usar el nombre del sonido directamente (el canal también lo tiene configurado)
+        : sound; // Usar el sonido directamente
+
+      console.log(
+        `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
+      );
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title,
           body,
-          sound: true,
+          sound: notificationSound,
           priority: Notifications.AndroidNotificationPriority.HIGH,
           data: { type: "pomodoro_end" },
         },
-        trigger: null, // Enviar inmediatamente
+        trigger: trigger,
+        ...(Platform.OS === "android" && channelId && { channelId }),
       });
       console.log(
         "Notificación de fin de pomodoro programada. ID:",
-        notificationId
+        notificationId,
+        "con sonido:",
+        sound,
+        "en canal:",
+        channelId
       );
     }
   } catch (error) {
@@ -329,10 +435,14 @@ export async function sendPomodoroEndNotification(
 
 /**
  * Envía una notificación cuando inicia el descanso (web o móvil)
+ * @param preferences - Preferencias de notificación
+ * @param breakType - Tipo de descanso (shortBreak o longBreak)
+ * @param secondsFromNow - Segundos desde ahora para programar la notificación (por defecto: inmediatamente)
  */
 export async function sendBreakStartNotification(
   preferences: NotificationPreferences,
-  breakType: "shortBreak" | "longBreak"
+  breakType: "shortBreak" | "longBreak",
+  secondsFromNow: number = 0
 ): Promise<void> {
   if (
     !preferences.notificationsEnabled ||
@@ -367,19 +477,120 @@ export async function sendBreakStartNotification(
     } else {
       // Usar notificaciones móviles
       const Notifications = await getNotificationsModule();
+      const soundName = preferences.alertSound || "default";
+
+      // Determinar el sonido a usar
+      let sound: string | boolean = true; // Por defecto usa el sonido del sistema
+
+      // Mapear sonidos personalizados
+      // En Android, el canal puede necesitar el nombre con extensión
+      const soundFileMap: Record<string, { base: string; withExt: string }> = {
+        bell: { base: "bell", withExt: "bell.wav" },
+        chime: { base: "chime", withExt: "chime.mp3" },
+        alert: { base: "alert", withExt: "alert.mp3" },
+        notification: { base: "notification", withExt: "notification.wav" },
+        ringtone: { base: "ringtone", withExt: "ringtone.wav" },
+      };
+
+      // Variable para almacenar el channelId si se crea un canal personalizado
+      let customChannelId: string | null = null;
+
+      if (soundName !== "default") {
+        const soundFile = soundFileMap[soundName];
+        if (soundFile) {
+          // En Android, crear un canal específico para cada sonido
+          // El sonido debe venir del canal, no de la notificación individual
+          if (Platform.OS === "android") {
+            try {
+              customChannelId = `workbreak_${soundFile.base}`;
+              
+              // Eliminar el canal específico si existe para recrearlo
+              try {
+                await Notifications.deleteNotificationChannelAsync(customChannelId);
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              } catch {
+                // Ignorar si el canal no existe
+              }
+
+              // Crear un canal específico para este sonido
+              // IMPORTANTE: En Expo/Android, el sonido debe ser el nombre base SIN extensión
+              // Expo resuelve automáticamente el archivo desde app.json
+              await Notifications.setNotificationChannelAsync(customChannelId, {
+                name: `Notificaciones WorkBreak`,
+                description: `Notificaciones con sonido ${soundFile.base}`,
+                importance: Notifications.AndroidImportance.HIGH,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: "#4CAF50",
+                sound: soundFile.base, // Nombre sin extensión (Expo lo resuelve desde app.json)
+                enableVibrate: true,
+                showBadge: true,
+              });
+
+              // Delay más largo para asegurar que el canal se cree completamente
+              await new Promise((resolve) => setTimeout(resolve, 500));
+
+              console.log(
+                `✓ Canal Android creado: ${customChannelId} con sonido: ${soundFile.base} (archivo: ${soundFile.withExt})`
+              );
+            } catch (error) {
+              console.error(
+                "✗ Error creando canal con sonido personalizado:",
+                error
+              );
+              customChannelId = null;
+            }
+          }
+          
+          // Para la notificación, usar el nombre base sin extensión
+          sound = soundFile.base;
+        }
+      }
+
+      // Programar la notificación para que se envíe en el tiempo especificado
+      let trigger: any = null;
+      if (secondsFromNow > 0) {
+        trigger = {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: secondsFromNow,
+          repeats: false,
+        };
+      }
+
+      // En Android, usar el canal específico si se creó uno personalizado
+      // Si no hay canal personalizado, usar "default"
+      const channelId = Platform.OS === "android" 
+        ? (customChannelId || "default")
+        : undefined;
+
+      // En Android, cuando hay un canal personalizado, intentar usar el nombre del sonido directamente
+      // Si el canal tiene el sonido configurado, también podemos usar "default" para que use el del canal
+      // PROBAR: Usar el nombre del sonido directamente en la notificación también
+      const notificationSound = Platform.OS === "android" && customChannelId
+        ? sound // Usar el nombre del sonido directamente (el canal también lo tiene configurado)
+        : sound; // Usar el sonido directamente
+
+      console.log(
+        `📢 Programando notificación - Sonido: ${notificationSound}, Canal: ${channelId || "N/A"}, Trigger: ${secondsFromNow}s`
+      );
+
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title,
           body,
-          sound: true,
+          sound: notificationSound,
           priority: Notifications.AndroidNotificationPriority.HIGH,
           data: { type: "break_start", breakType },
         },
-        trigger: null, // Enviar inmediatamente
+        trigger: trigger,
+        ...(Platform.OS === "android" && channelId && { channelId }),
       });
       console.log(
         `Notificación de inicio de ${breakTypeText} programada. ID:`,
-        notificationId
+        notificationId,
+        "con sonido:",
+        sound,
+        "en canal:",
+        channelId
       );
     }
   } catch (error) {

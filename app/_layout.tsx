@@ -25,16 +25,18 @@ export default function RootLayout() {
     // Ocultar el splash screen cuando la app esté lista
     const hideSplash = async () => {
       try {
+        // Esperar a que el splash screen esté listo antes de ocultarlo
         await SplashScreen.hideAsync();
       } catch (error) {
         console.warn("Error ocultando splash screen:", error);
       }
     };
 
-    // Pequeño delay para asegurar que todo esté cargado
+    // Delay para asegurar que todos los recursos estén cargados
+    // y que el splash screen se muestre correctamente
     const timer = setTimeout(() => {
       hideSplash();
-    }, 500);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, []);

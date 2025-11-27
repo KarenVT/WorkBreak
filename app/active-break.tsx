@@ -6,14 +6,8 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Exercise } from "@/services/exercises";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Modal,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface ActiveBreakModalProps {
   visible: boolean;

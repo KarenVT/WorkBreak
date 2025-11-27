@@ -8,7 +8,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { router } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -17,6 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SYSTEM_SOUNDS } from "./sound-selector";
 
 export default function PreferencesScreen() {
   const colorScheme = useColorScheme();
@@ -33,9 +34,13 @@ export default function PreferencesScreen() {
   };
 
   const handleSoundPress = () => {
-    // Aquí puedes navegar a una pantalla de selección de sonidos si la creas
-    console.log("Sonido de alerta presionado");
+    router.push("/sound-selector");
   };
+
+  const selectedSoundName = useMemo(() => {
+    const sound = SYSTEM_SOUNDS.find((s) => s.id === preferences.alertSound);
+    return sound?.displayName || "Predeterminado";
+  }, [preferences.alertSound]);
 
   if (isLoading) {
     return (
@@ -131,7 +136,7 @@ export default function PreferencesScreen() {
           <PreferenceNavigation
             icon="music.note"
             title="Sonido de Alerta"
-            subtitle="Predeterminado"
+            subtitle={selectedSoundName}
             onPress={handleSoundPress}
           />
         </View>
