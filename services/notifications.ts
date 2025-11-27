@@ -358,6 +358,22 @@ export async function sendPomodoroEndNotification(
                 console.warn("⚠ No se pudieron listar canales:", err);
               }
 
+              // CRÍTICO: Cancelar todas las notificaciones programadas antes de eliminar el canal
+              // Android no permite eliminar canales que tienen notificaciones activas
+              try {
+                await Notifications.cancelAllScheduledNotificationsAsync();
+                console.log(
+                  `🗑️ Notificaciones programadas canceladas antes de eliminar canal`
+                );
+                // Esperar un momento para que Android procese la cancelación
+                await new Promise((resolve) => setTimeout(resolve, 200));
+              } catch (cancelError) {
+                console.warn(
+                  "⚠ No se pudieron cancelar notificaciones:",
+                  cancelError
+                );
+              }
+
               // Eliminar el canal específico si existe para recrearlo
               // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
@@ -370,27 +386,58 @@ export async function sendPomodoroEndNotification(
                 console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
-              // Esperar 400ms después de eliminar el canal
-              await new Promise((resolve) => setTimeout(resolve, 400));
+              // Esperar más tiempo después de eliminar el canal (Android necesita tiempo)
+              await new Promise((resolve) => setTimeout(resolve, 600));
 
-              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente
-              try {
-                const channelsAfter =
-                  await Notifications.getNotificationChannelsAsync();
-                const canalExiste = channelsAfter.some(
-                  (c) => c.id === customChannelId
-                );
-                if (canalExiste) {
-                  console.error(
-                    `❌ ERROR CRÍTICO: El canal ${customChannelId} AÚN EXISTE después de eliminarlo. Esto causará que use el sonido por defecto.`
+              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente (múltiples intentos)
+              let canalExiste = true;
+              let intentos = 0;
+              const maxIntentos = 3;
+
+              while (canalExiste && intentos < maxIntentos) {
+                try {
+                  const channelsAfter =
+                    await Notifications.getNotificationChannelsAsync();
+                  canalExiste = channelsAfter.some(
+                    (c) => c.id === customChannelId
                   );
-                } else {
-                  console.log(
-                    `✅ Canal ${customChannelId} eliminado correctamente`
-                  );
+
+                  if (canalExiste) {
+                    intentos++;
+                    console.warn(
+                      `⚠ Intento ${intentos}/${maxIntentos}: El canal ${customChannelId} aún existe. Esperando más tiempo...`
+                    );
+                    if (intentos < maxIntentos) {
+                      // Intentar cancelar notificaciones nuevamente
+                      try {
+                        await Notifications.cancelAllScheduledNotificationsAsync();
+                        await Notifications.deleteNotificationChannelAsync(
+                          customChannelId
+                        );
+                      } catch {}
+                      await new Promise((resolve) => setTimeout(resolve, 500));
+                    }
+                  } else {
+                    console.log(
+                      `✅ Canal ${customChannelId} eliminado correctamente (intento ${
+                        intentos + 1
+                      })`
+                    );
+                    break;
+                  }
+                } catch (err) {
+                  console.warn("⚠ No se pudo verificar eliminación:", err);
+                  break;
                 }
-              } catch (err) {
-                console.warn("⚠ No se pudo verificar eliminación:", err);
+              }
+
+              if (canalExiste) {
+                console.error(
+                  `❌ ERROR CRÍTICO: El canal ${customChannelId} NO se pudo eliminar después de ${maxIntentos} intentos.`
+                );
+                console.error(
+                  `❌ SOLUCIÓN: Desinstala y reinstala la app, o reinicia el dispositivo para limpiar los canales.`
+                );
               }
 
               // Crear un canal específico para este sonido
@@ -431,6 +478,8 @@ export async function sendPomodoroEndNotification(
                 );
 
                 // Verificar que el sonido se configuró correctamente
+                // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
+                // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
                 if (
                   !channel?.sound ||
                   channel.sound === "default" ||
@@ -439,9 +488,20 @@ export async function sendPomodoroEndNotification(
                   console.error(
                     `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
                   );
-                } else if (channel.sound !== channelSoundName) {
                   console.error(
-                    `❌ ERROR: El sonido del canal no coincide. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}"`
+                    `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
+                  );
+                } else if (channel.sound === "custom") {
+                  // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
+                  console.log(
+                    `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
+                  );
+                  console.log(
+                    `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
+                  );
+                } else if (channel.sound !== channelSoundName) {
+                  console.warn(
+                    `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
                   );
                 } else {
                   console.log(
@@ -626,6 +686,22 @@ export async function sendBreakStartNotification(
                 console.warn("⚠ No se pudieron listar canales:", err);
               }
 
+              // CRÍTICO: Cancelar todas las notificaciones programadas antes de eliminar el canal
+              // Android no permite eliminar canales que tienen notificaciones activas
+              try {
+                await Notifications.cancelAllScheduledNotificationsAsync();
+                console.log(
+                  `🗑️ Notificaciones programadas canceladas antes de eliminar canal`
+                );
+                // Esperar un momento para que Android procese la cancelación
+                await new Promise((resolve) => setTimeout(resolve, 200));
+              } catch (cancelError) {
+                console.warn(
+                  "⚠ No se pudieron cancelar notificaciones:",
+                  cancelError
+                );
+              }
+
               // Eliminar el canal específico si existe para recrearlo
               // CRÍTICO: Android no permite modificar canales existentes, deben eliminarse y recrearse
               try {
@@ -638,27 +714,58 @@ export async function sendBreakStartNotification(
                 console.log(`ℹ Canal no existía (normal): ${customChannelId}`);
               }
 
-              // Esperar 400ms después de eliminar el canal
-              await new Promise((resolve) => setTimeout(resolve, 400));
+              // Esperar más tiempo después de eliminar el canal (Android necesita tiempo)
+              await new Promise((resolve) => setTimeout(resolve, 600));
 
-              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente
-              try {
-                const channelsAfter =
-                  await Notifications.getNotificationChannelsAsync();
-                const canalExiste = channelsAfter.some(
-                  (c) => c.id === customChannelId
-                );
-                if (canalExiste) {
-                  console.error(
-                    `❌ ERROR CRÍTICO: El canal ${customChannelId} AÚN EXISTE después de eliminarlo. Esto causará que use el sonido por defecto.`
+              // DIAGNÓSTICO: Verificar que el canal se eliminó realmente (múltiples intentos)
+              let canalExiste = true;
+              let intentos = 0;
+              const maxIntentos = 3;
+
+              while (canalExiste && intentos < maxIntentos) {
+                try {
+                  const channelsAfter =
+                    await Notifications.getNotificationChannelsAsync();
+                  canalExiste = channelsAfter.some(
+                    (c) => c.id === customChannelId
                   );
-                } else {
-                  console.log(
-                    `✅ Canal ${customChannelId} eliminado correctamente`
-                  );
+
+                  if (canalExiste) {
+                    intentos++;
+                    console.warn(
+                      `⚠ Intento ${intentos}/${maxIntentos}: El canal ${customChannelId} aún existe. Esperando más tiempo...`
+                    );
+                    if (intentos < maxIntentos) {
+                      // Intentar cancelar notificaciones nuevamente
+                      try {
+                        await Notifications.cancelAllScheduledNotificationsAsync();
+                        await Notifications.deleteNotificationChannelAsync(
+                          customChannelId
+                        );
+                      } catch {}
+                      await new Promise((resolve) => setTimeout(resolve, 500));
+                    }
+                  } else {
+                    console.log(
+                      `✅ Canal ${customChannelId} eliminado correctamente (intento ${
+                        intentos + 1
+                      })`
+                    );
+                    break;
+                  }
+                } catch (err) {
+                  console.warn("⚠ No se pudo verificar eliminación:", err);
+                  break;
                 }
-              } catch (err) {
-                console.warn("⚠ No se pudo verificar eliminación:", err);
+              }
+
+              if (canalExiste) {
+                console.error(
+                  `❌ ERROR CRÍTICO: El canal ${customChannelId} NO se pudo eliminar después de ${maxIntentos} intentos.`
+                );
+                console.error(
+                  `❌ SOLUCIÓN: Desinstala y reinstala la app, o reinicia el dispositivo para limpiar los canales.`
+                );
               }
 
               // Crear un canal específico para este sonido
@@ -699,6 +806,8 @@ export async function sendBreakStartNotification(
                 );
 
                 // Verificar que el sonido se configuró correctamente
+                // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
+                // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
                 if (
                   !channel?.sound ||
                   channel.sound === "default" ||
@@ -707,9 +816,20 @@ export async function sendBreakStartNotification(
                   console.error(
                     `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
                   );
-                } else if (channel.sound !== channelSoundName) {
                   console.error(
-                    `❌ ERROR: El sonido del canal no coincide. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}"`
+                    `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
+                  );
+                } else if (channel.sound === "custom") {
+                  // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
+                  console.log(
+                    `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
+                  );
+                  console.log(
+                    `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
+                  );
+                } else if (channel.sound !== channelSoundName) {
+                  console.warn(
+                    `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
                   );
                 } else {
                   console.log(
