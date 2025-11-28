@@ -1,4 +1,6 @@
 import { Platform } from "react-native";
+import { preferencesDB } from "./preferences-db";
+import { playNotificationSound } from "./sound-service";
 
 /**
  * NOTA IMPORTANTE SOBRE EXPO GO Y SDK 53:
@@ -14,6 +16,11 @@ import { Platform } from "react-native";
  * NOTIFICACIONES WEB:
  * En web, usamos la Web Notifications API del navegador, que es diferente
  * a expo-notifications pero proporciona la misma funcionalidad.
+ *
+ * SONIDOS DE NOTIFICACIÓN:
+ * Usamos react-native-sound para reproducir sonidos personalizados cuando
+ * las notificaciones llegan y la app está en primer plano. Esto complementa
+ * el sistema de sonidos de las notificaciones nativas.
  */
 
 // ==================== DETECCIÓN DE PLATAFORMA ====================
@@ -23,6 +30,7 @@ const isWeb = Platform.OS === "web";
 // Variable para cachear el módulo de notificaciones después de la primera carga
 let NotificationsModule: typeof import("expo-notifications") | null = null;
 let notificationHandlerConfigured = false;
+let notificationListenerConfigured = false;
 
 /**
  * Obtiene el módulo de notificaciones de forma lazy (solo cuando se necesita)
@@ -54,6 +62,68 @@ async function getNotificationsModule(): Promise<
         console.log("Handler de notificaciones configurado correctamente");
       } catch (error) {
         console.error("Error configurando handler de notificaciones:", error);
+      }
+    }
+
+    // Configurar listener para reproducir sonidos personalizados cuando lleguen notificaciones
+    // Esto es útil cuando la app está en primer plano
+    if (!notificationListenerConfigured && !isWeb) {
+      try {
+        const subscription =
+          NotificationsModule.addNotificationReceivedListener(
+            async (notification) => {
+              console.log(
+                "📬 Notificación recibida:",
+                notification.request.content.title
+              );
+
+              // Obtener las preferencias del usuario para saber qué sonido usar
+              try {
+                await preferencesDB.init();
+                const notificationsEnabled =
+                  await preferencesDB.getBooleanPreference(
+                    "notifications_enabled"
+                  );
+
+                if (!notificationsEnabled) {
+                  console.log(
+                    "Notificaciones deshabilitadas, no se reproducirá sonido"
+                  );
+                  return;
+                }
+
+                const alertSound =
+                  (await preferencesDB.getPreference("alert_sound")) ||
+                  "default";
+
+                // Reproducir el sonido personalizado usando react-native-sound
+                // Esto complementa el sonido nativo de la notificación
+                if (alertSound !== "default") {
+                  console.log(
+                    `🔊 Reproduciendo sonido personalizado: ${alertSound}`
+                  );
+                  await playNotificationSound(alertSound, 1.0);
+                } else {
+                  console.log("Usando sonido predeterminado del sistema");
+                }
+              } catch (error) {
+                console.error(
+                  "Error obteniendo preferencias para reproducir sonido:",
+                  error
+                );
+              }
+            }
+          );
+
+        notificationListenerConfigured = true;
+        console.log(
+          "✅ Listener de notificaciones configurado con react-native-sound"
+        );
+
+        // Nota: La suscripción se mantendrá activa durante toda la vida de la app
+        // Si necesitas removerla, puedes usar subscription.remove()
+      } catch (error) {
+        console.error("Error configurando listener de notificaciones:", error);
       }
     }
   }
