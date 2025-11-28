@@ -49,9 +49,38 @@ async function getNotificationsModule(): Promise<
         NotificationsModule.setNotificationHandler({
           handleNotification: async () => {
             console.log("Handler de notificaciones ejecutado");
+
+            // Verificar si hay un sonido personalizado configurado
+            // Si hay sonido personalizado, deshabilitar el sonido del sistema
+            // para evitar que suenen ambos al mismo tiempo
+            let shouldPlaySystemSound = true;
+
+            try {
+              await preferencesDB.init();
+              const alertSound =
+                (await preferencesDB.getPreference("alert_sound")) || "default";
+
+              // Si hay un sonido personalizado (no "default"), deshabilitar el sonido del sistema
+              // El sonido personalizado se reproducirá mediante react-native-sound en el listener
+              if (alertSound !== "default") {
+                shouldPlaySystemSound = false;
+                console.log(
+                  `🔇 Sonido del sistema deshabilitado (usando sonido personalizado: ${alertSound})`
+                );
+              } else {
+                console.log("🔊 Usando sonido predeterminado del sistema");
+              }
+            } catch (error) {
+              console.error(
+                "Error verificando preferencias de sonido en handler:",
+                error
+              );
+              // En caso de error, usar el comportamiento por defecto (sonido del sistema)
+            }
+
             return {
               shouldShowAlert: true,
-              shouldPlaySound: true,
+              shouldPlaySound: shouldPlaySystemSound,
               shouldSetBadge: false,
               shouldShowBanner: true,
               shouldShowList: true,
@@ -546,13 +575,26 @@ export async function sendPomodoroEndNotification(
       const channelId =
         Platform.OS === "android" ? customChannelId || "default" : undefined;
 
-      // En Android, cuando hay un canal personalizado, usar `true` para que use el sonido del canal
-      // El sonido ya está configurado en el canal, así que la notificación debe usar `true`
-      // Para iOS, usar el nombre del sonido directamente
-      const notificationSound =
-        Platform.OS === "android" && customChannelId
-          ? true // Usar `true` para que Android use el sonido configurado en el canal
-          : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      // IMPORTANTE: Si hay un sonido personalizado, NO configurar el sonido en la notificación
+      // Esto evita que el sistema reproduzca su sonido. El sonido personalizado se reproducirá
+      // mediante react-native-sound en el listener cuando llegue la notificación
+      // Si es "default", usar el sonido del sistema normalmente
+      let notificationSound: string | boolean | undefined;
+
+      if (soundName === "default") {
+        // Usar sonido del sistema normalmente
+        notificationSound =
+          Platform.OS === "android" && customChannelId
+            ? true // Usar `true` para que Android use el sonido configurado en el canal
+            : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      } else {
+        // Sonido personalizado: deshabilitar el sonido del sistema
+        // El sonido personalizado se reproducirá mediante react-native-sound
+        notificationSound = false;
+        console.log(
+          `🔇 Sonido del sistema deshabilitado (se usará sonido personalizado: ${soundName})`
+        );
+      }
 
       console.log(
         `📢 Programando notificación - Sonido: ${JSON.stringify(
@@ -816,13 +858,26 @@ export async function sendBreakStartNotification(
       const channelId =
         Platform.OS === "android" ? customChannelId || "default" : undefined;
 
-      // En Android, cuando hay un canal personalizado, usar `true` para que use el sonido del canal
-      // El sonido ya está configurado en el canal, así que la notificación debe usar `true`
-      // Para iOS, usar el nombre del sonido directamente
-      const notificationSound =
-        Platform.OS === "android" && customChannelId
-          ? true // Usar `true` para que Android use el sonido configurado en el canal
-          : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      // IMPORTANTE: Si hay un sonido personalizado, NO configurar el sonido en la notificación
+      // Esto evita que el sistema reproduzca su sonido. El sonido personalizado se reproducirá
+      // mediante react-native-sound en el listener cuando llegue la notificación
+      // Si es "default", usar el sonido del sistema normalmente
+      let notificationSound: string | boolean | undefined;
+
+      if (soundName === "default") {
+        // Usar sonido del sistema normalmente
+        notificationSound =
+          Platform.OS === "android" && customChannelId
+            ? true // Usar `true` para que Android use el sonido configurado en el canal
+            : sound; // Para iOS o cuando no hay canal personalizado, usar el sonido directamente
+      } else {
+        // Sonido personalizado: deshabilitar el sonido del sistema
+        // El sonido personalizado se reproducirá mediante react-native-sound
+        notificationSound = false;
+        console.log(
+          `🔇 Sonido del sistema deshabilitado (se usará sonido personalizado: ${soundName})`
+        );
+      }
 
       console.log(
         `📢 Programando notificación - Sonido: ${JSON.stringify(
