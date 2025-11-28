@@ -29,6 +29,7 @@ type IconSymbolName =
   | "eye.fill"
   | "figure.walk"
   | "speaker.wave.2.fill"
+  | "speaker.slash.fill"
   | "xmark"
   | "backward.fill"
   | "checkmark.circle";
@@ -68,6 +69,7 @@ const MAPPING: IconMapping = {
   "eye.fill": "visibility",
   "figure.walk": "directions-walk",
   "speaker.wave.2.fill": "volume-up",
+  "speaker.slash.fill": "volume-off",
   xmark: "close",
   "backward.fill": "skip-previous",
   "checkmark.circle": "check-circle",

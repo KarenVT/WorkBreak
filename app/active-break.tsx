@@ -62,12 +62,16 @@ export default function ActiveBreakModal({
   const [modalTimeRemaining, setModalTimeRemaining] = useState(totalDuration);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Estado para controlar si el video está silenciado
+  const [isMuted, setIsMuted] = useState(false);
+
   // Crear el reproductor de video (siempre se crea, pero solo se usa cuando mode === "video")
   const player = useVideoPlayer(
     require("@/assets/videos/Es_hora_de_la_pausa_activa.mp4"),
     (player) => {
       player.loop = true;
       player.pause(); // Iniciar pausado, se controlará con useEffect
+      player.volume = 1.0; // Inicializar con volumen al máximo
     }
   );
 
@@ -339,6 +343,9 @@ export default function ActiveBreakModal({
         // Detener y reiniciar el video cuando el modal se cierra
         player.pause();
         player.currentTime = 0;
+        // Resetear el estado de silencio cuando se cierra el modal
+        setIsMuted(false);
+        player.volume = 1.0;
       } else if (visible && !isPaused) {
         // Reproducir cuando el modal está visible y no está pausado
         player.play();
@@ -348,6 +355,18 @@ export default function ActiveBreakModal({
       }
     }
   }, [isPaused, mode, visible, player]);
+
+  // Controlar el volumen del video según el estado de silencio
+  useEffect(() => {
+    if (mode === "video" && player) {
+      player.volume = isMuted ? 0 : 1.0;
+    }
+  }, [isMuted, mode, player]);
+
+  // Función para alternar el estado de silencio
+  const handleToggleMute = () => {
+    setIsMuted((prev) => !prev);
+  };
 
   // Obtener el ejercicio actual
   const currentExerciseData = exerciseList[currentExerciseIndex];
@@ -381,17 +400,20 @@ export default function ActiveBreakModal({
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => {}}
-            activeOpacity={0.7}
-          >
-            <IconSymbol
-              name="speaker.wave.2.fill"
-              size={24}
-              color={colors.textMedium}
-            />
-          </TouchableOpacity>
+          {mode === "video" && (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleToggleMute}
+              activeOpacity={0.7}
+            >
+              <IconSymbol
+                name={isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"}
+                size={24}
+                color={colors.textMedium}
+              />
+            </TouchableOpacity>
+          )}
+          {mode !== "video" && <View style={styles.headerButton} />}
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handlePrevious}
