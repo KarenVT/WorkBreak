@@ -435,17 +435,14 @@ export async function sendPomodoroEndNotification(
           // En Expo, usar solo el nombre base sin extensión para la notificación
           sound = soundFile.base;
 
-          // En Android, crear un canal específico para cada sonido
-          // SOLUCIÓN DEFINITIVA: Cada sonido tiene su propio canal único
-          // Android NO permite modificar canales existentes, así que:
-          // - Si el canal ya existe, lo usamos directamente (nunca lo eliminamos)
-          // - Si no existe, lo creamos
-          // - NUNCA reutilizamos un canal para cambiar el sonido
+          // En Android, crear un canal SIN SONIDO para sonidos personalizados
+          // Esto evita que Android reproduzca su sonido del sistema
+          // El sonido personalizado se reproducirá mediante react-native-sound
           if (Platform.OS === "android") {
             try {
-              customChannelId = `workbreak_${soundFile.base}`;
-              const channelSoundName = soundFile.base; // Usar nombre SIN extensión
-
+              // Usar un canal específico SIN sonido para notificaciones con sonidos personalizados
+              customChannelId = `workbreak_custom_sound`;
+              
               // Verificar si el canal ya existe
               let canalExiste = false;
               try {
@@ -457,14 +454,8 @@ export async function sendPomodoroEndNotification(
 
                 if (canalExiste) {
                   console.log(
-                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente sin recrearlo.`
+                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente.`
                   );
-                  console.log(
-                    `🔍 Canal existente - ID: ${existingChannel?.id}, Sonido: "${existingChannel?.sound}", Importancia: ${existingChannel?.importance}`
-                  );
-                  // El canal ya existe con el sonido correcto, no necesitamos recrearlo
-                  // Android no permite modificar canales, pero como cada sonido tiene su propio ID único,
-                  // este canal siempre tendrá el sonido correcto
                 }
               } catch (checkError) {
                 // El canal no existe, lo crearemos a continuación
@@ -477,18 +468,19 @@ export async function sendPomodoroEndNotification(
               // Solo crear el canal si no existe
               if (!canalExiste) {
                 console.log(
-                  `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
+                  `🔧 Creando canal SILENCIOSO para sonidos personalizados: ${customChannelId}`
                 );
 
+                // Crear canal SIN sonido (null) para evitar que Android reproduzca sonido del sistema
                 await Notifications.setNotificationChannelAsync(
                   customChannelId,
                   {
                     name: `Notificaciones WorkBreak`,
-                    description: `Notificaciones con sonido ${soundFile.base}`,
+                    description: `Notificaciones con sonido personalizado`,
                     importance: Notifications.AndroidImportance.HIGH,
                     vibrationPattern: [0, 250, 250, 250],
                     lightColor: "#4CAF50",
-                    sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
+                    sound: null, // SIN SONIDO - el sonido se reproducirá mediante react-native-sound
                     enableVibrate: true,
                     showBadge: true,
                   }
@@ -498,60 +490,12 @@ export async function sendPomodoroEndNotification(
                 await new Promise((resolve) => setTimeout(resolve, 800));
 
                 console.log(
-                  `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
+                  `✅ Canal Android SILENCIOSO creado: ${customChannelId} (sin sonido del sistema)`
                 );
-
-                // Verificar que el canal se creó correctamente
-                try {
-                  const channel =
-                    await Notifications.getNotificationChannelAsync(
-                      customChannelId
-                    );
-                  console.log(
-                    `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
-                  );
-
-                  // Verificar que el sonido se configuró correctamente
-                  // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
-                  // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
-                  if (
-                    !channel?.sound ||
-                    channel.sound === "default" ||
-                    channel.sound === null
-                  ) {
-                    console.error(
-                      `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
-                    );
-                    console.error(
-                      `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
-                    );
-                  } else if (channel.sound === "custom") {
-                    // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
-                    console.log(
-                      `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
-                    );
-                    console.log(
-                      `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
-                    );
-                  } else if (channel.sound !== channelSoundName) {
-                    console.warn(
-                      `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
-                    );
-                  } else {
-                    console.log(
-                      `✅ Sonido configurado correctamente: "${channel.sound}"`
-                    );
-                  }
-                } catch (verifyError) {
-                  console.error(
-                    "❌ No se pudo verificar el canal:",
-                    verifyError
-                  );
-                }
               }
             } catch (error) {
               console.error(
-                "✗ Error creando canal con sonido personalizado:",
+                "✗ Error creando canal silencioso para sonidos personalizados:",
                 error
               );
               customChannelId = null;
@@ -571,9 +515,12 @@ export async function sendPomodoroEndNotification(
       }
 
       // En Android, usar el canal específico si se creó uno personalizado
-      // Si no hay canal personalizado, usar "default"
+      // IMPORTANTE: Si hay sonido personalizado, SIEMPRE usar el canal silencioso
+      // Si no hay canal personalizado, usar "default" solo si es sonido del sistema
       const channelId =
-        Platform.OS === "android" ? customChannelId || "default" : undefined;
+        Platform.OS === "android" 
+          ? (soundName !== "default" ? (customChannelId || "default") : "default")
+          : undefined;
 
       // IMPORTANTE: Si hay un sonido personalizado, NO configurar el sonido en la notificación
       // Esto evita que el sistema reproduzca su sonido. El sonido personalizado se reproducirá
@@ -608,14 +555,14 @@ export async function sendPomodoroEndNotification(
           console.error(
             `❌ ERROR CRÍTICO: No se está pasando channelId. Android usará el canal "default" con sonido del sistema.`
           );
-        } else if (channelId === "default") {
+        } else if (channelId === "default" && soundName !== "default") {
           console.warn(
-            `⚠ ADVERTENCIA: Se está usando el canal "default". Si hay un sonido personalizado, debería usar: ${
+            `⚠ ADVERTENCIA: Se está usando el canal "default" con sonido personalizado. Debería usar: ${
               customChannelId || "N/A"
             }`
           );
         } else {
-          console.log(`✅ Usando canal personalizado: ${channelId}`);
+          console.log(`✅ Usando canal: ${channelId} (sonido: ${soundName})`);
         }
       }
 
@@ -715,17 +662,14 @@ export async function sendBreakStartNotification(
       if (soundName !== "default") {
         const soundFile = soundFileMap[soundName];
         if (soundFile) {
-          // En Android, crear un canal específico para cada sonido
-          // SOLUCIÓN DEFINITIVA: Cada sonido tiene su propio canal único
-          // Android NO permite modificar canales existentes, así que:
-          // - Si el canal ya existe, lo usamos directamente (nunca lo eliminamos)
-          // - Si no existe, lo creamos
-          // - NUNCA reutilizamos un canal para cambiar el sonido
+          // En Android, crear un canal SIN SONIDO para sonidos personalizados
+          // Esto evita que Android reproduzca su sonido del sistema
+          // El sonido personalizado se reproducirá mediante react-native-sound
           if (Platform.OS === "android") {
             try {
-              customChannelId = `workbreak_${soundFile.base}`;
-              const channelSoundName = soundFile.base; // Usar nombre SIN extensión
-
+              // Usar un canal específico SIN sonido para notificaciones con sonidos personalizados
+              customChannelId = `workbreak_custom_sound`;
+              
               // Verificar si el canal ya existe
               let canalExiste = false;
               try {
@@ -737,14 +681,8 @@ export async function sendBreakStartNotification(
 
                 if (canalExiste) {
                   console.log(
-                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente sin recrearlo.`
+                    `✅ Canal ${customChannelId} ya existe. Usándolo directamente.`
                   );
-                  console.log(
-                    `🔍 Canal existente - ID: ${existingChannel?.id}, Sonido: "${existingChannel?.sound}", Importancia: ${existingChannel?.importance}`
-                  );
-                  // El canal ya existe con el sonido correcto, no necesitamos recrearlo
-                  // Android no permite modificar canales, pero como cada sonido tiene su propio ID único,
-                  // este canal siempre tendrá el sonido correcto
                 }
               } catch (checkError) {
                 // El canal no existe, lo crearemos a continuación
@@ -757,18 +695,19 @@ export async function sendBreakStartNotification(
               // Solo crear el canal si no existe
               if (!canalExiste) {
                 console.log(
-                  `🔧 Creando canal: ${customChannelId} con sonido: "${channelSoundName}" (archivo: ${soundFile.withExt})`
+                  `🔧 Creando canal SILENCIOSO para sonidos personalizados: ${customChannelId}`
                 );
 
+                // Crear canal SIN sonido (null) para evitar que Android reproduzca sonido del sistema
                 await Notifications.setNotificationChannelAsync(
                   customChannelId,
                   {
                     name: `Notificaciones WorkBreak`,
-                    description: `Notificaciones con sonido ${soundFile.base}`,
+                    description: `Notificaciones con sonido personalizado`,
                     importance: Notifications.AndroidImportance.HIGH,
                     vibrationPattern: [0, 250, 250, 250],
                     lightColor: "#4CAF50",
-                    sound: channelSoundName, // Nombre SIN extensión (ej: "bell")
+                    sound: null, // SIN SONIDO - el sonido se reproducirá mediante react-native-sound
                     enableVibrate: true,
                     showBadge: true,
                   }
@@ -778,60 +717,12 @@ export async function sendBreakStartNotification(
                 await new Promise((resolve) => setTimeout(resolve, 800));
 
                 console.log(
-                  `✅ Canal Android creado: ${customChannelId} con sonido: "${channelSoundName}"`
+                  `✅ Canal Android SILENCIOSO creado: ${customChannelId} (sin sonido del sistema)`
                 );
-
-                // Verificar que el canal se creó correctamente
-                try {
-                  const channel =
-                    await Notifications.getNotificationChannelAsync(
-                      customChannelId
-                    );
-                  console.log(
-                    `🔍 Canal verificado - ID: ${channel?.id}, Sonido configurado: "${channel?.sound}", Importancia: ${channel?.importance}`
-                  );
-
-                  // Verificar que el sonido se configuró correctamente
-                  // NOTA: Android puede devolver "custom" cuando encuentra un sonido personalizado
-                  // pero no puede devolver el nombre exacto. Esto es válido si el archivo está en res/raw/
-                  if (
-                    !channel?.sound ||
-                    channel.sound === "default" ||
-                    channel.sound === null
-                  ) {
-                    console.error(
-                      `❌ ERROR CRÍTICO: El canal NO tiene el sonido personalizado configurado. Sonido actual: "${channel?.sound}". Android usará el sonido por defecto del sistema.`
-                    );
-                    console.error(
-                      `❌ SOLUCIÓN: Verifica que el archivo ${soundFile.withExt} esté en android/app/src/main/res/raw/ después de ejecutar 'expo prebuild --clean'`
-                    );
-                  } else if (channel.sound === "custom") {
-                    // "custom" puede ser válido si Android encuentra el archivo pero no devuelve el nombre exacto
-                    console.log(
-                      `✅ Sonido personalizado detectado: "custom" (archivo esperado: ${soundFile.withExt})`
-                    );
-                    console.log(
-                      `ℹ Si el sonido no suena, verifica que ${soundFile.withExt} esté en res/raw/ en el build final`
-                    );
-                  } else if (channel.sound !== channelSoundName) {
-                    console.warn(
-                      `⚠ El sonido del canal no coincide exactamente. Esperado: "${channelSoundName}", Obtenido: "${channel.sound}". Puede funcionar si el archivo está en res/raw/`
-                    );
-                  } else {
-                    console.log(
-                      `✅ Sonido configurado correctamente: "${channel.sound}"`
-                    );
-                  }
-                } catch (verifyError) {
-                  console.error(
-                    "❌ No se pudo verificar el canal:",
-                    verifyError
-                  );
-                }
               }
             } catch (error) {
               console.error(
-                "✗ Error creando canal con sonido personalizado:",
+                "✗ Error creando canal silencioso para sonidos personalizados:",
                 error
               );
               customChannelId = null;
@@ -854,9 +745,12 @@ export async function sendBreakStartNotification(
       }
 
       // En Android, usar el canal específico si se creó uno personalizado
-      // Si no hay canal personalizado, usar "default"
+      // IMPORTANTE: Si hay sonido personalizado, SIEMPRE usar el canal silencioso
+      // Si no hay canal personalizado, usar "default" solo si es sonido del sistema
       const channelId =
-        Platform.OS === "android" ? customChannelId || "default" : undefined;
+        Platform.OS === "android" 
+          ? (soundName !== "default" ? (customChannelId || "default") : "default")
+          : undefined;
 
       // IMPORTANTE: Si hay un sonido personalizado, NO configurar el sonido en la notificación
       // Esto evita que el sistema reproduzca su sonido. El sonido personalizado se reproducirá
