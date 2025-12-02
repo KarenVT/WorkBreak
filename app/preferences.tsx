@@ -28,10 +28,7 @@ export default function PreferencesScreen() {
     router.back();
   };
 
-  const handleAboutPress = () => {
-    // Aquí puedes navegar a una pantalla de "Acerca de" si la creas
-    console.log("Acerca de presionado");
-  };
+ 
 
   const handleSoundPress = () => {
     router.push("/sound-selector");
@@ -167,7 +164,7 @@ export default function PreferencesScreen() {
           <PreferenceNavigation
             icon="info.circle.fill"
             title="Acerca de"
-            onPress={handleAboutPress}
+            onPress={() => router.push("/about")}
           />
         </View>
       </ScrollView>

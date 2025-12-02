@@ -13,15 +13,13 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/Designer.png",
-        "backgroundImage": "./assets/images/Designer.png",
-        "monochromeImage": "./assets/images/Designer.png",
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/icon.png",
+        "monochromeImage": "./assets/images/icon.png",
         "dark": {
-          "backgroundColor": "#E6F4FE",
-          "foregroundImage": "./assets/images/Designer.png",
-          "backgroundImage": "./assets/images/Designer.png",
-          "monochromeImage": "./assets/images/Designer.png"
+          "backgroundColor": "#ffffff",
+          "foregroundImage": "./assets/images/icon.png",
+          "monochromeImage": "./assets/images/icon.png"
         }
       },
       "edgeToEdgeEnabled": true,
